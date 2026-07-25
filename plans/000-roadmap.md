@@ -8,6 +8,13 @@ status: READY
 
 Every phase should be something you can actually open and use, not just a technical milestone. If a phase ships and you wouldn't bother opening the app, the phase was scoped wrong.
 
+## Current implementation posture (2026-07-24)
+
+- Spec 001 is complete and verified; the debug viewer is already working against a live Spotify session.
+- Spec 002 is the next active implementation target and is now ready for Codex: capture pipeline, rolling buffer, track segmentation, and a debug WAV export.
+- Specs 003 and 004 remain queued until the headless capture path is proven and reviewed.
+- The product goal stays the same: leave the app running, hear something interesting, and get a clean clip with minimal effort.
+
 ## Phase 1 — "It just works" (this is the MVP, specs 001–004)
 
 The whole point: play a song in Spotify, the app already knows what it is and is already capturing it, you trim the part you like, you get an MP3 with correct tags sitting in your Spotify Local Files folder. No manual steps, no music-theory knowledge required, no editing complexity beyond "drag to select, hit export."

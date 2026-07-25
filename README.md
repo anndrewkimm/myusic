@@ -13,3 +13,15 @@ Early planning. See `plans/000-roadmap.md` for the phase breakdown, and `docs/CO
 ## Stack
 
 Windows, .NET 8, WPF. See `docs/CONVENTIONS.md` for why.
+
+## Now-playing debug viewer
+
+With Spotify open, run:
+
+```powershell
+dotnet run --project src/Hookline.NowPlaying.Debug
+```
+
+The console reports Spotify session availability, playback-state changes, and
+each settled track change with its instance ID and available metadata. Press
+`Ctrl+C` to stop it.

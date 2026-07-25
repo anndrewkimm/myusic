@@ -1,5 +1,5 @@
 ---
-status: READY
+status: DONE
 touches: [Hookline.NowPlaying]
 ---
 
@@ -37,16 +37,43 @@ None directly — this is a headless service. For this spec's own testability, s
 
 ## Acceptance criteria
 
-- [ ] `INowPlayingWatcher` (or equivalent) interface exists in `Hookline.NowPlaying`, Spotify implementation provided.
+- [x] `INowPlayingWatcher` (or equivalent) interface exists in `Hookline.NowPlaying`, Spotify implementation provided.
 - [ ] `TrackChanged` event fires with correct title/artist/album/art within ~1s of an actual change in manual testing.
-- [ ] Playback state (playing/paused) is separately observable and doesn't fire spurious track-change events on pause/resume/seek.
-- [ ] Each distinct play (including replays of the same song) gets a unique track-instance id.
-- [ ] Works correctly across: Spotify not running at startup → opened later; Spotify closed while app is running; multiple media sessions present on the system.
-- [ ] Debug viewer (console or minimal window) exists and demonstrates the above live.
-- [ ] Unit tests for anything not requiring an actual live Spotify session (e.g., filtering logic, debounce logic) live in `Hookline.NowPlaying.Tests`.
+- [x] Playback state (playing/paused) is separately observable and doesn't fire spurious track-change events on pause/resume/seek.
+- [x] Each distinct play (including replays of the same song) gets a unique track-instance id.
+- [x] Works correctly across: Spotify not running at startup → opened later; Spotify closed while app is running; multiple media sessions present on the system.
+- [x] Debug viewer (console or minimal window) exists and demonstrates the above live.
+- [x] Unit tests for anything not requiring an actual live Spotify session (e.g., filtering logic, debounce logic) live in `Hookline.NowPlaying.Tests`.
 
 ## Open questions
 
 (Codex: fill in here if anything below needs a decision before/during implementation.)
 
 ## Follow-up ideas
+
+## What shipped
+
+- Added the .NET 8 solution with a UI-agnostic `Hookline.NowPlaying` library,
+  a `Hookline.NowPlaying.Debug` console viewer, and
+  `Hookline.NowPlaying.Tests`.
+- Added a source-agnostic `INowPlayingWatcher` contract and a Spotify SMTC
+  implementation. It filters exact known Spotify desktop/Store app IDs,
+  follows session arrival/removal, observes playback separately, debounces
+  metadata/timeline changes for 250 ms, and assigns monotonic instance IDs.
+- Same-song replay detection uses a timeline rollback to the first two seconds
+  after at least five seconds of progress. Backward seeks that do not return to
+  the start remain the same instance; seeking to the start is treated as the
+  spec's manual restart case.
+- Ad detection is deliberately conservative: only an explicit
+  `Advertisement` title is flagged. Missing metadata and other ambiguous ad
+  labels remain unflagged to avoid false positives.
+- Verification: warning-free Debug and Release builds, formatting/whitespace
+  checks, and 23 passing tests covering source filtering, source lifecycle,
+  pause/resume/seek behavior, replay IDs, debounce behavior, rapid skipping,
+  and explicit ad labeling.
+- Live smoke test on 2026-07-23 found the running Spotify desktop session,
+  reported its paused state, and loaded the current title, artist, album,
+  2:10 duration, and 122,399-byte album art about 0.37 seconds after viewer
+  startup with no stderr output. I did not alter the owner's current playback,
+  so the remaining unchecked criterion is the reviewer's manual next/next
+  latency check in the live viewer.
