@@ -131,6 +131,73 @@ public sealed class RollingAudioBufferTests
         );
     }
 
+    [Fact]
+    public void RealPacketClockJitterDoesNotFragmentTheTimeline()
+    {
+        var liveFormat = new PcmAudioFormat(
+            sampleRate: 44_100,
+            bitsPerSample: 16,
+            channels: 2
+        );
+        var buffer = new RollingAudioBuffer(
+            liveFormat,
+            TimeSpan.FromMinutes(5)
+        );
+        var packetDuration = TimeSpan.FromMilliseconds(10);
+        var packet = new byte[
+            liveFormat.GetAlignedByteCount(packetDuration)
+        ];
+
+        for (var packetIndex = 0; packetIndex < 6_000; packetIndex++)
+        {
+            buffer.Append(
+                trackInstanceId: 1,
+                playbackStart:
+                    TimeSpan.FromTicks(
+                        packetDuration.Ticks * packetIndex
+                    )
+                    + TimeSpan.FromTicks(
+                        1_507L * packetIndex
+                    ),
+                packet
+            );
+        }
+
+        var snapshot = buffer.Query(1);
+
+        Assert.Single(snapshot.IncludedRanges);
+        Assert.Empty(snapshot.ExcludedRanges);
+        Assert.False(snapshot.HasGaps);
+        Assert.Equal(packet.Length * 6_000, snapshot.Audio.Length);
+        Assert.Equal(
+            liveFormat.GetDuration(snapshot.Audio.Length),
+            snapshot.IncludedRanges[0].Duration
+        );
+    }
+
+    [Fact]
+    public void NegativeSyntheticIdCanQueryButCannotCapture()
+    {
+        var format = new PcmAudioFormat(10, 16, 1);
+        var buffer = new RollingAudioBuffer(
+            format,
+            TimeSpan.FromSeconds(1)
+        );
+
+        var snapshot = buffer.Query(-1);
+
+        Assert.Equal(-1, snapshot.TrackInstanceId);
+        Assert.True(snapshot.Audio.IsEmpty);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () =>
+                buffer.Append(
+                    -1,
+                    TimeSpan.Zero,
+                    new byte[format.BlockAlign]
+                )
+        );
+    }
+
     private static byte[] Repeated(byte value, int count) =>
         Enumerable.Repeat(value, count).ToArray();
 }

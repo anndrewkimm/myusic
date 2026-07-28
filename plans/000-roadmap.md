@@ -8,11 +8,32 @@ status: READY
 
 Every phase should be something you can actually open and use, not just a technical milestone. If a phase ships and you wouldn't bother opening the app, the phase was scoped wrong.
 
-## Current implementation posture (2026-07-24)
+## Current implementation posture (2026-07-27)
 
-- Spec 001 is complete and verified; the debug viewer is already working against a live Spotify session.
-- Spec 002 is the next active implementation target and is now ready for Codex: capture pipeline, rolling buffer, track segmentation, and a debug WAV export.
-- Specs 003 and 004 remain queued until the headless capture path is proven and reviewed.
+Phase 1 is fully implemented and reviewed. All four specs are DONE:
+
+- Spec 001 (now-playing watcher) — verified live against a real Spotify session.
+- Spec 002 (loopback capture + rolling buffer) — verified live: process-loopback capture, pause/ad exclusion, and track-segmentation/no-bleed all confirmed by ear.
+- Spec 003 (trim UI + export) — design pass on 2026-07-27 resolved six open UX calls, Codex implemented it the same day. Independently reviewed: build/tests/code all check out, live smoke test confirmed correct rendering (dark theme, metadata, honest empty-buffer state, no default selection). One residual note, not a blocker: bringing the window to the foreground from an automated/background trigger didn't visibly succeed in testing — plausibly a Windows focus-lock artifact of non-interactive testing rather than an app bug; worth confirming with a real physical hotkey press during normal use.
+- Spec 004 (clip catalog) — planned and implemented the same day: SQLite-backed catalog, separate tray-reachable window, rename/delete/reveal/re-trim all wired with rollback-safe persistence (quarantine-based delete, tag-rollback rename, orphan-cleanup export registration). Independently reviewed against every resolved decision — clean.
+
+Full solution: 0 build warnings, 55/55 tests passing.
+
+**Spec 006 (memory growth fix) is DONE.** Root cause: SMTC/WASAPI clock skew (~0.15ms per packet) was misread as thousands of real timeline gaps, each rendered as a filled rectangle plus ~24 hatch lines on the waveform — that's what was ballooning memory, not the audio buffer itself (which was always correctly bounded). Fixed by snapping packets within a 5ms jitter tolerance onto a continuous timeline, plus a sub-pixel rendering guard as defense in depth. Confirmed by both a targeted regression test and the owner's own real-world 35-minute run.
+
+**Spec 005 (Spotify Local Files export) is also DONE.** Best-effort detection of Spotify's configured Local Files folders (parsing its undocumented `watch-sources.bnk`/`local-files.bnk`), defaults new installs into a detected folder when one exists, and shows a one-time in-app hint when none is configured yet (since Spotify itself has to be told to watch a folder — no app can do that for it).
+
+Phase 1's exit bar is now genuinely met: all of specs 001-006 are `DONE`. Phase 2's backlog (below) remains unspecced by owner's choice for now.
+
+Spec 007 (search a song from inside Hookline, auto-play it in Spotify) was drafted but never implemented, and was dropped by owner's decision 2026-07-27 — its only value was skipping an alt-tab to Spotify's own (better) search, not worth building. Removed from `plans/`.
+
+Spec 008 (import a local audio file — MP3/WAV/M4A/AAC/WMA already on disk — into the same trim/preview/export/catalog pipeline as a live-captured clip) is `DONE`. Reviewed independently: build/tests clean, decode/caps/metadata-fallback logic all check out, and the adapter pattern held — no changes needed to the existing trim/export/catalog pipeline.
+
+Spec 009 (clip sound effects: speed change, bass boost, loop/extend, applied live in the trim window before export) is `DONE`. Reviewed independently: build/tests clean (85/85), the neutral-defaults-means-no-regression guarantee is structural (returns the same object reference, not just equivalent bytes) rather than merely tested, and preview/export share the exact same processing call so they can't drift apart.
+
+Spec 010 (10-band graphic equalizer with one-click character presets — Bass Boost, Treble Boost, Vocal, Bright, Mellow — grounded in Sony Headphones Connect's real preset naming and standard ISO EQ band frequencies) is `DONE`. Reviewed independently: build/tests clean (92/92), per-stage clamping between cascaded filters (not just at the end) is a genuinely careful detail, and the neutral fast-path guarantee carries forward correctly from spec 009. Replaced spec 009's single bass-boost knob rather than keeping both.
+
+Spec 011 (stem isolation — vocals/bass/drums/other, modeled on iZotope RX's Music Rebalance, via a local ONNX-exported Demucs model through `Microsoft.ML.OnnxRuntime`) is `IN_PROGRESS` with Codex. Explicitly scoped to a real, verified granularity ceiling — 4 solid stems, optionally 6 with acknowledged quality tradeoffs — not per-instrument isolation, which isn't achievable with current technology regardless of tool.
 - The product goal stays the same: leave the app running, hear something interesting, and get a clean clip with minimal effort.
 
 ## Phase 1 — "It just works" (this is the MVP, specs 001–004)

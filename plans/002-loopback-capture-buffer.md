@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.Audio]
 depends_on: [001]
 ---
@@ -76,9 +76,9 @@ None directly — headless. For this spec's own verification: a debug command th
 
 - [x] Process-specific (or documented fallback) loopback capture is running continuously while the app is open.
 - [x] Rolling buffer holds the configured window and correctly evicts older audio.
-- [ ] Buffer queries are correctly segmented by track instance — verified by manually skipping tracks and confirming no bleed-over in a dumped WAV.
+- [x] Buffer queries are correctly segmented by track instance — verified by manually skipping tracks and confirming no bleed-over in a dumped WAV.
 - [x] Ad-flagged and paused regions are excluded/marked per spec 001's signals.
-- [ ] Debug WAV-dump command exists and produces audibly-correct output.
+- [x] Debug WAV-dump command exists and produces audibly-correct output.
 - [x] Sustained-run memory-bound test exists (even a simple long-running integration test) proving the buffer doesn't grow unbounded.
 - [x] Output-device-change behavior is at minimum detectable (doesn't fail silently), documented in "What shipped" even if full auto-recovery isn't achieved in this spec.
 
@@ -136,10 +136,31 @@ Verification completed:
 - Live debug export produced 4.2 seconds of valid RIFF PCM: stereo, 44.1 kHz,
   16-bit, 737,352 audio bytes with nonzero sample data.
 
-Known review gaps:
+Known review gaps (resolved 2026-07-27, see below):
 
 - The exported WAV could not be judged by ear in the automated environment.
 - The no-bleed behavior is covered by deterministic track-instance tests, but
   the requested human workflow of manually skipping Spotify tracks and
   listening to the resulting WAV remains for review. No playback controls were
   invoked during implementation.
+
+## Review notes (2026-07-27)
+
+Reviewer ran both debug consoles live against a real Spotify session:
+
+- Status consistently reported `Running (ProcessLoopback)`, never fell back
+  to full-system loopback.
+- Paused regions correctly excluded: a dump attempt while paused failed with
+  "the current track has no buffered audio" rather than returning silence or
+  stale audio.
+- Dumped two real clips: the first 21.4s of one track, and 19.4s of the very
+  next track (a genuine track change) immediately after. Owner confirmed by
+  ear both were clean and correctly matched to their respective songs, with
+  no bleed from the prior track — the duration of the second dump (19.4s)
+  matched almost exactly the elapsed time since that track had started,
+  consistent with the segment boundary resetting cleanly at the track change.
+  Also exercised a same-song replay (new instance, same title) immediately
+  before the genuine track change, adding a harder boundary case than a
+  simple skip.
+- Both remaining acceptance boxes and the "known review gaps" above are
+  considered resolved. Spec accepted as DONE.

@@ -38,7 +38,7 @@ None directly — this is a headless service. For this spec's own testability, s
 ## Acceptance criteria
 
 - [x] `INowPlayingWatcher` (or equivalent) interface exists in `Hookline.NowPlaying`, Spotify implementation provided.
-- [ ] `TrackChanged` event fires with correct title/artist/album/art within ~1s of an actual change in manual testing.
+- [x] `TrackChanged` event fires with correct title/artist/album/art within ~1s of an actual change in manual testing.
 - [x] Playback state (playing/paused) is separately observable and doesn't fire spurious track-change events on pause/resume/seek.
 - [x] Each distinct play (including replays of the same song) gets a unique track-instance id.
 - [x] Works correctly across: Spotify not running at startup → opened later; Spotify closed while app is running; multiple media sessions present on the system.
@@ -50,6 +50,12 @@ None directly — this is a headless service. For this spec's own testability, s
 (Codex: fill in here if anything below needs a decision before/during implementation.)
 
 ## Follow-up ideas
+
+- Live session on 2026-07-27 logged three distinct track-instance IDs for the
+  same song within an ~9s window, two of them only 24ms apart (well under the
+  documented 250ms debounce). Not confirmed as a bug — may simply reflect
+  rapid manual restarts — but worth a targeted look if it recurs, since it
+  touches the same-song-replay detection this spec relies on.
 
 ## What shipped
 
@@ -74,6 +80,12 @@ None directly — this is a headless service. For this spec's own testability, s
 - Live smoke test on 2026-07-23 found the running Spotify desktop session,
   reported its paused state, and loaded the current title, artist, album,
   2:10 duration, and 122,399-byte album art about 0.37 seconds after viewer
-  startup with no stderr output. I did not alter the owner's current playback,
-  so the remaining unchecked criterion is the reviewer's manual next/next
-  latency check in the live viewer.
+  startup with no stderr output.
+- Reviewer live verification on 2026-07-27: ran the debug viewer against a
+  live Spotify session end-to-end. Track changes were consistently detected
+  well under 1s (e.g. a playback-resume at 10:17:29.034 was reflected as a
+  new track at 10:17:29.423, ~389ms later), across four real track changes
+  including a same-song replay correctly assigned a new instance ID. Pause/
+  resume correctly logged as state changes rather than track changes. Last
+  unchecked acceptance box confirmed; see Follow-up ideas for one anomaly
+  noted during this session.

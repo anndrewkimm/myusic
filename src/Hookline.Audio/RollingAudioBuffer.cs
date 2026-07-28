@@ -5,6 +5,9 @@ namespace Hookline.Audio;
 /// </summary>
 public sealed class RollingAudioBuffer
 {
+    private static readonly TimeSpan PacketTimelineJitterTolerance =
+        TimeSpan.FromMilliseconds(5);
+
     private readonly object _gate = new();
     private readonly List<AudioChunk> _chunks = [];
     private readonly long _maximumBytes;
@@ -104,16 +107,44 @@ public sealed class RollingAudioBuffer
         var copy = audio
             .Slice(bytesToSkip, alignedLength)
             .ToArray();
-        var chunk = new AudioChunk(
-            Interlocked.Increment(ref _nextSequence),
-            trackInstanceId,
-            playbackStart,
-            playbackStart + Format.GetDuration(copy.Length),
-            copy
-        );
-
         lock (_gate)
         {
+            var observedPlaybackStart = playbackStart;
+            var previousChunk = _chunks.FindLast(
+                chunk =>
+                    chunk.TrackInstanceId == trackInstanceId
+            );
+            if (
+                previousChunk is not null
+                && Math.Abs(
+                    (
+                        (
+                            observedPlaybackStart
+                            - previousChunk.ObservedPlaybackStart
+                        )
+                        - (
+                            previousChunk.PlaybackEnd
+                            - previousChunk.PlaybackStart
+                        )
+                    ).Ticks
+                )
+                    <= PacketTimelineJitterTolerance.Ticks
+            )
+            {
+                // The SMTC clock and WASAPI packet clock are independent.
+                // Normal scheduling jitter otherwise creates one artificial
+                // timeline gap per packet and explodes waveform complexity.
+                playbackStart = previousChunk.PlaybackEnd;
+            }
+
+            var chunk = new AudioChunk(
+                Interlocked.Increment(ref _nextSequence),
+                trackInstanceId,
+                observedPlaybackStart,
+                playbackStart,
+                playbackStart + Format.GetDuration(copy.Length),
+                copy
+            );
             _chunks.Add(chunk);
             _totalBytes += copy.Length;
             EvictOldestBytes();
@@ -126,7 +157,7 @@ public sealed class RollingAudioBuffer
         TimeSpan? end = null
     )
     {
-        if (trackInstanceId <= 0)
+        if (trackInstanceId == 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(trackInstanceId)
@@ -230,21 +261,12 @@ public sealed class RollingAudioBuffer
             );
         }
 
-        var hasGaps = false;
-        for (var index = 1; index < selectedRanges.Count; index++)
-        {
-            if (
-                selectedRanges[index].Start
-                > selectedRanges[index - 1].End
-                    + TimeSpan.FromSeconds(
-                        1d / Format.SampleRate
-                    )
-            )
-            {
-                hasGaps = true;
-                break;
-            }
-        }
+        var includedRanges = MergeRanges(selectedRanges);
+        var excludedRanges = FindExcludedRanges(
+            includedRanges,
+            requestedStart,
+            requestedEnd
+        );
 
         return new AudioBufferSnapshot
         {
@@ -257,7 +279,9 @@ public sealed class RollingAudioBuffer
             AvailableEnd = availableEnd,
             IsStartTruncated = requestedStart < availableStart,
             IsEndTruncated = requestedEnd > availableEnd,
-            HasGaps = hasGaps,
+            HasGaps = excludedRanges.Count > 0,
+            IncludedRanges = includedRanges,
+            ExcludedRanges = excludedRanges,
         };
     }
 
@@ -315,6 +339,9 @@ public sealed class RollingAudioBuffer
                 .ToArray();
             _chunks[0] = oldest with
             {
+                ObservedPlaybackStart =
+                    oldest.ObservedPlaybackStart
+                    + Format.GetDuration(bytesToRemove),
                 PlaybackStart =
                     oldest.PlaybackStart
                     + Format.GetDuration(bytesToRemove),
@@ -330,9 +357,74 @@ public sealed class RollingAudioBuffer
     private static TimeSpan Min(TimeSpan left, TimeSpan right) =>
         left <= right ? left : right;
 
+    private IReadOnlyList<AudioTimeRange> MergeRanges(
+        IReadOnlyList<SelectedRange> selectedRanges
+    )
+    {
+        if (selectedRanges.Count == 0)
+        {
+            return Array.Empty<AudioTimeRange>();
+        }
+
+        var tolerance = TimeSpan.FromSeconds(
+            1d / Format.SampleRate
+        );
+        var merged = new List<AudioTimeRange>();
+        var currentStart = selectedRanges[0].Start;
+        var currentEnd = selectedRanges[0].End;
+        for (var index = 1; index < selectedRanges.Count; index++)
+        {
+            var range = selectedRanges[index];
+            if (range.Start <= currentEnd + tolerance)
+            {
+                currentEnd = Max(currentEnd, range.End);
+                continue;
+            }
+
+            merged.Add(new AudioTimeRange(currentStart, currentEnd));
+            currentStart = range.Start;
+            currentEnd = range.End;
+        }
+
+        merged.Add(new AudioTimeRange(currentStart, currentEnd));
+        return merged;
+    }
+
+    private static IReadOnlyList<AudioTimeRange> FindExcludedRanges(
+        IReadOnlyList<AudioTimeRange> includedRanges,
+        TimeSpan requestedStart,
+        TimeSpan requestedEnd
+    )
+    {
+        if (requestedEnd <= requestedStart)
+        {
+            return Array.Empty<AudioTimeRange>();
+        }
+
+        var excluded = new List<AudioTimeRange>();
+        var cursor = requestedStart;
+        foreach (var range in includedRanges)
+        {
+            if (range.Start > cursor)
+            {
+                excluded.Add(new AudioTimeRange(cursor, range.Start));
+            }
+
+            cursor = Max(cursor, range.End);
+        }
+
+        if (cursor < requestedEnd)
+        {
+            excluded.Add(new AudioTimeRange(cursor, requestedEnd));
+        }
+
+        return excluded;
+    }
+
     private sealed record AudioChunk(
         long Sequence,
         long TrackInstanceId,
+        TimeSpan ObservedPlaybackStart,
         TimeSpan PlaybackStart,
         TimeSpan PlaybackEnd,
         byte[] Audio

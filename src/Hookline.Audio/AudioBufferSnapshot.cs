@@ -22,5 +22,11 @@ public sealed record AudioBufferSnapshot
 
     public bool HasGaps { get; init; }
 
+    public IReadOnlyList<AudioTimeRange> IncludedRanges { get; init; } =
+        Array.Empty<AudioTimeRange>();
+
+    public IReadOnlyList<AudioTimeRange> ExcludedRanges { get; init; } =
+        Array.Empty<AudioTimeRange>();
+
     public TimeSpan Duration => Format.GetDuration(Audio.Length);
 }

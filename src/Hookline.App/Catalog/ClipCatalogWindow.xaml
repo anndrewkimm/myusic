@@ -1,0 +1,318 @@
+<Window
+    x:Class="Hookline.App.Catalog.ClipCatalogWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Hookline.App"
+    xmlns:catalog="clr-namespace:Hookline.App.Catalog"
+    Title="{x:Static local:AppStrings.LibraryWindowTitle}"
+    Width="1000"
+    Height="680"
+    MinWidth="820"
+    MinHeight="540"
+    WindowStartupLocation="CenterScreen"
+    WindowStyle="None"
+    Background="{StaticResource WindowBackgroundBrush}"
+    Loaded="OnLoaded"
+    PreviewKeyDown="OnWindowPreviewKeyDown">
+    <Window.Resources>
+        <catalog:AlbumArtBytesToImageConverter
+            x:Key="AlbumArtConverter" />
+
+        <Style x:Key="CatalogActionButton" TargetType="Button">
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="MinWidth" Value="58" />
+        </Style>
+    </Window.Resources>
+
+    <Border
+        BorderBrush="#343B48"
+        BorderThickness="1"
+        Background="{StaticResource WindowBackgroundBrush}">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid
+                Grid.Row="0"
+                Margin="-5,-9,-5,18"
+                Background="Transparent"
+                MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
+                <StackPanel>
+                    <TextBlock
+                        FontFamily="Segoe UI Semibold"
+                        FontSize="25"
+                        Text="{x:Static local:AppStrings.LibraryHeading}" />
+                    <TextBlock
+                        Margin="0,5,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        Text="{x:Static local:AppStrings.LibrarySubtitle}" />
+                </StackPanel>
+                <Button
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Width="34"
+                    Height="30"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnCloseClick"
+                    Content="✕" />
+            </Grid>
+
+            <DockPanel Grid.Row="1" Margin="0,0,0,13">
+                <TextBlock
+                    DockPanel.Dock="Left"
+                    Margin="0,0,9,0"
+                    VerticalAlignment="Center"
+                    FontSize="10"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{x:Static local:AppStrings.CatalogSortLabel}" />
+                <ComboBox
+                    x:Name="SortPicker"
+                    DockPanel.Dock="Left"
+                    Width="135"
+                    Height="31"
+                    Padding="8,4"
+                    Background="#242A36"
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    BorderBrush="#353D4B"
+                    SelectedIndex="0"
+                    SelectionChanged="OnSortChanged">
+                    <ComboBoxItem
+                        Content="{x:Static local:AppStrings.CatalogSortRecent}" />
+                    <ComboBoxItem
+                        Content="{x:Static local:AppStrings.CatalogSortArtist}" />
+                </ComboBox>
+            </DockPanel>
+
+            <Grid Grid.Row="2">
+                <ListView
+                    x:Name="ClipList"
+                    ItemsSource="{Binding Items}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    HorizontalContentAlignment="Stretch"
+                    ScrollViewer.CanContentScroll="True"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,9" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <ContentPresenter />
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate
+                            DataType="{x:Type catalog:ClipCatalogItemViewModel}">
+                            <Border
+                                Padding="13"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                BorderBrush="#262D39"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                ToolTip="{Binding FilePath}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="330" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border
+                                        Width="56"
+                                        Height="56"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        Background="#242A36"
+                                        CornerRadius="7"
+                                        ClipToBounds="True">
+                                        <Grid>
+                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                FontSize="20"
+                                                Foreground="{StaticResource MutedTextBrush}"
+                                                Text="♪" />
+                                            <Image
+                                                Source="{Binding AlbumArt, Converter={StaticResource AlbumArtConverter}}"
+                                                Stretch="UniformToFill" />
+                                        </Grid>
+                                    </Border>
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="4,1,16,0"
+                                        VerticalAlignment="Center">
+                                        <Grid>
+                                            <TextBlock
+                                                x:Name="TitleText"
+                                                FontFamily="Segoe UI Semibold"
+                                                FontSize="16"
+                                                Text="{Binding DisplayTitle}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <DockPanel
+                                                x:Name="TitleEditor"
+                                                Visibility="Collapsed">
+                                                <Button
+                                                    DockPanel.Dock="Right"
+                                                    Style="{StaticResource CatalogActionButton}"
+                                                    Click="OnCancelRenameClick"
+                                                    Content="{x:Static local:AppStrings.CatalogCancel}" />
+                                                <Button
+                                                    DockPanel.Dock="Right"
+                                                    Style="{StaticResource CatalogActionButton}"
+                                                    Click="OnSaveRenameClick"
+                                                    Content="{x:Static local:AppStrings.CatalogSave}" />
+                                                <TextBox
+                                                    Margin="0,0,7,0"
+                                                    Padding="7,4"
+                                                    VerticalContentAlignment="Center"
+                                                    Background="#0F131A"
+                                                    Foreground="{StaticResource PrimaryTextBrush}"
+                                                    BorderBrush="#5BE7B1"
+                                                    CaretBrush="{StaticResource PrimaryTextBrush}"
+                                                    Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}"
+                                                    IsVisibleChanged="OnRenameTextBoxIsVisibleChanged"
+                                                    KeyDown="OnRenameTextBoxKeyDown" />
+                                            </DockPanel>
+                                        </Grid>
+                                        <TextBlock
+                                            Margin="0,4,0,0"
+                                            FontSize="12"
+                                            Foreground="{StaticResource MutedTextBrush}"
+                                            Text="{Binding Artist}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Margin="0,5,0,0"
+                                            FontFamily="Consolas"
+                                            FontSize="10"
+                                            Foreground="#7F899B"
+                                            Text="{Binding DetailText}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Margin="0,5,0,0"
+                                            FontFamily="Segoe UI Semibold"
+                                            FontSize="9"
+                                            Foreground="{StaticResource WarningBrush}"
+                                            Text="{Binding MissingText}" />
+                                    </StackPanel>
+
+                                    <WrapPanel
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <Button
+                                            Style="{StaticResource CatalogActionButton}"
+                                            IsEnabled="{Binding CanUseFile}"
+                                            Click="OnPlayClick"
+                                            Content="{Binding PlayButtonText}" />
+                                        <Button
+                                            Style="{StaticResource CatalogActionButton}"
+                                            IsEnabled="{Binding CanUseFile}"
+                                            Click="OnRetrimClick"
+                                            Content="{x:Static local:AppStrings.CatalogRetrim}" />
+                                        <Button
+                                            Style="{StaticResource CatalogActionButton}"
+                                            IsEnabled="{Binding CanUseFile}"
+                                            Click="OnRevealClick"
+                                            Content="{x:Static local:AppStrings.CatalogReveal}" />
+                                        <Button
+                                            x:Name="RenameButton"
+                                            Style="{StaticResource CatalogActionButton}"
+                                            IsEnabled="{Binding CanUseFile}"
+                                            Click="OnRenameClick"
+                                            Content="{x:Static local:AppStrings.CatalogRename}" />
+                                        <Button
+                                            Style="{StaticResource CatalogActionButton}"
+                                            Background="#3A2226"
+                                            BorderBrush="#75434B"
+                                            Click="OnDeleteClick"
+                                            Content="{x:Static local:AppStrings.CatalogDelete}" />
+                                    </WrapPanel>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger
+                                    Binding="{Binding IsEditing}"
+                                    Value="True">
+                                    <Setter
+                                        TargetName="TitleText"
+                                        Property="Visibility"
+                                        Value="Collapsed" />
+                                    <Setter
+                                        TargetName="TitleEditor"
+                                        Property="Visibility"
+                                        Value="Visible" />
+                                    <Setter
+                                        TargetName="RenameButton"
+                                        Property="IsEnabled"
+                                        Value="False" />
+                                </DataTrigger>
+                                <DataTrigger
+                                    Binding="{Binding IsMissing}"
+                                    Value="True">
+                                    <Setter
+                                        TargetName="TitleText"
+                                        Property="Opacity"
+                                        Value="0.55" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="430"
+                    FontSize="14"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{x:Static local:AppStrings.CatalogEmpty}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger
+                                    Binding="{Binding IsEmpty}"
+                                    Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <TextBlock
+                Grid.Row="3"
+                MinHeight="18"
+                Margin="2,12,0,0"
+                FontSize="12"
+                Foreground="{StaticResource MutedTextBrush}"
+                Text="{Binding StatusMessage}"
+                TextTrimming="CharacterEllipsis"
+                ToolTip="{Binding StatusMessage}" />
+        </Grid>
+    </Border>
+</Window>
