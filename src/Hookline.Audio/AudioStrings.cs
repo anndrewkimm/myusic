@@ -56,6 +56,15 @@ internal static class AudioStrings
     public const string InvalidLoopCount =
         "The loop count is outside the supported range.";
 
+    public const string InvalidReverbAmount =
+        "The reverb amount is outside the supported range.";
+
+    public const string InvalidRotationRate =
+        "The stereo rotation rate is outside the supported range.";
+
+    public const string InvalidEditEffectPreset =
+        "None and Custom are edit-effect states, not selectable presets.";
+
     public const string InvalidEqualizerBandCount =
         "An equalizer curve must contain exactly 10 bands.";
 

@@ -131,6 +131,157 @@ public sealed class ClipEffectsProcessorTests
     }
 
     [Fact]
+    public void FullWetReverbAddsASmoothDecayingStereoTail()
+    {
+        const int sampleRate = 8_000;
+        const int sourceFrameCount = 800;
+        var samples = new short[sourceFrameCount * 2];
+        samples[0] = short.MaxValue;
+        samples[1] = short.MaxValue;
+        var source = CreateSnapshot(
+            new PcmAudioFormat(sampleRate, 16, 2),
+            samples
+        );
+
+        var processed = ClipEffectsProcessor.Process(
+            source,
+            new ClipEffectSettings { ReverbWetMix = 1 }
+        );
+        var output = ReadSamples(processed);
+        var left = output.Where((_, index) => index % 2 == 0).ToArray();
+        var right = output.Where((_, index) => index % 2 == 1).ToArray();
+        var tailStart = sourceFrameCount;
+        var finalWindowStart = left.Length - (sampleRate / 10);
+
+        Assert.Equal(TimeSpan.FromSeconds(2.1), processed.Duration);
+        Assert.Contains(left[tailStart..], sample => sample != 0);
+        Assert.False(left.SequenceEqual(right));
+        Assert.True(
+            left[finalWindowStart..]
+                .Max(sample => Math.Abs((int)sample))
+                < left.Max(sample => Math.Abs((int)sample))
+                / 10
+        );
+        Assert.All(
+            output,
+            sample =>
+                Assert.InRange(
+                    sample,
+                    short.MinValue,
+                    short.MaxValue
+                )
+        );
+    }
+
+    [Fact]
+    public void ReverbRunsBeforeLoopAssembly()
+    {
+        var source = CreateSnapshot(
+            new PcmAudioFormat(1_000, 16, 1),
+            Enumerable.Repeat((short)2_000, 100).ToArray()
+        );
+        var settings = new ClipEffectSettings
+        {
+            ReverbWetMix = 0.5,
+            LoopCount = 2,
+        };
+
+        var processed = ClipEffectsProcessor.Process(source, settings);
+
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(4_195),
+            processed.Duration
+        );
+        Assert.Equal(
+            processed.Duration,
+            ClipEffectsProcessor.GetOutputDuration(source, settings)
+        );
+    }
+
+    [Fact]
+    public void RotationStaysSmoothAndDoesNotRestartAtALoopBoundary()
+    {
+        const int sampleRate = 1_000;
+        const int sourceFrames = 1_000;
+        var sourceSamples = Enumerable
+            .Repeat((short)10_000, sourceFrames * 2)
+            .ToArray();
+        var processed = ClipEffectsProcessor.Process(
+            CreateSnapshot(
+                new PcmAudioFormat(sampleRate, 16, 2),
+                sourceSamples
+            ),
+            new ClipEffectSettings
+            {
+                LoopCount = 2,
+                RotationRateHertz =
+                    ClipEffectSettings
+                        .MaximumRotationRateHertz,
+            }
+        );
+        var output = ReadSamples(processed);
+        var left = output.Where((_, index) => index % 2 == 0).ToArray();
+        var right = output.Where((_, index) => index % 2 == 1).ToArray();
+        var largestLeftStep = left
+            .Zip(
+                left.Skip(1),
+                (current, next) =>
+                    Math.Abs((int)next - current)
+            )
+            .Max();
+        var largestRightStep = right
+            .Zip(
+                right.Skip(1),
+                (current, next) =>
+                    Math.Abs((int)next - current)
+            )
+            .Max();
+
+        Assert.Equal(1_995, left.Length);
+        Assert.InRange(Math.Abs((int)left[sourceFrames]), 0, 25);
+        Assert.True(right[sourceFrames] > 14_000);
+        Assert.InRange(largestLeftStep, 1, 25);
+        Assert.InRange(largestRightStep, 1, 25);
+    }
+
+    [Fact]
+    public void SlowestRotationRateAlsoMovesContinuously()
+    {
+        const int sampleRate = 100;
+        const int frameCount = sampleRate * 5;
+        var source = CreateSnapshot(
+            new PcmAudioFormat(sampleRate, 16, 2),
+            Enumerable
+                .Repeat((short)10_000, frameCount * 2)
+                .ToArray()
+        );
+
+        var processed = ClipEffectsProcessor.Process(
+            source,
+            new ClipEffectSettings
+            {
+                RotationRateHertz =
+                    ClipEffectSettings
+                        .MinimumRotationRateHertz,
+            }
+        );
+        var left = ReadSamples(processed)
+            .Where((_, index) => index % 2 == 0)
+            .ToArray();
+        var largestStep = left
+            .Zip(
+                left.Skip(1),
+                (current, next) =>
+                    Math.Abs((int)next - current)
+            )
+            .Max();
+
+        Assert.Equal(10_000, left[0]);
+        Assert.InRange(Math.Abs((int)left[^1]), 0, 40);
+        Assert.InRange(largestStep, 1, 40);
+    }
+
+    [Fact]
     public void LoopingCrossfadesBoundariesWithoutGaps()
     {
         const int sampleRate = 1_000;
@@ -220,6 +371,44 @@ public sealed class ClipEffectsProcessorTests
     }
 
     [Fact]
+    public void FiveMinuteReverbStaysWithinLivePreviewBudget()
+    {
+        var format = new PcmAudioFormat(44_100, 16, 2);
+        var duration =
+            ClipEffectSettings.MaximumExpandedDuration;
+        var source = new AudioBufferSnapshot
+        {
+            TrackInstanceId = 7,
+            Format = format,
+            Audio = new byte[
+                format.GetAlignedByteCount(duration)
+            ],
+            RequestedStart = TimeSpan.Zero,
+            RequestedEnd = duration,
+            AvailableStart = TimeSpan.Zero,
+            AvailableEnd = duration,
+            IncludedRanges =
+            [
+                new AudioTimeRange(TimeSpan.Zero, duration),
+            ],
+        };
+        var stopwatch =
+            System.Diagnostics.Stopwatch.StartNew();
+
+        var processed = ClipEffectsProcessor.Process(
+            source,
+            new ClipEffectSettings { ReverbWetMix = 0.55 }
+        );
+
+        stopwatch.Stop();
+        Assert.Equal(duration, processed.Duration);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(5),
+            $"Five-minute reverb took {stopwatch.Elapsed}."
+        );
+    }
+
+    [Fact]
     public async Task ExtremeCombinedSettingsStillExportSuccessfully()
     {
         const int sampleRate = 44_100;
@@ -247,7 +436,12 @@ public sealed class ClipEffectsProcessorTests
                 SpeedMultiplier =
                     ClipEffectSettings.MinimumSpeedMultiplier,
                 EqualizerCurve = CreateMaximumCurve(),
+                ReverbWetMix =
+                    ClipEffectSettings.MaximumReverbWetMix,
                 LoopCount = ClipEffectSettings.MaximumLoopCount,
+                RotationRateHertz =
+                    ClipEffectSettings
+                        .MaximumRotationRateHertz,
             }
         );
         var temporaryDirectory = Path.Combine(

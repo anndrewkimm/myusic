@@ -125,7 +125,7 @@ public sealed class Mp3ClipExporter : IClipExporter
         }
     }
 
-    private static byte[] ApplyEdgeFades(
+    internal static byte[] ApplyEdgeFades(
         ReadOnlySpan<byte> source,
         PcmAudioFormat format
     )

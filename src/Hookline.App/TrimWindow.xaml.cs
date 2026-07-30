@@ -112,6 +112,23 @@ public partial class TrimWindow : Window
         RoutedEventArgs args
     ) => _viewModel.TogglePreview();
 
+    private void OnEditEffectPresetClick(
+        object sender,
+        RoutedEventArgs args
+    )
+    {
+        if (
+            sender
+            is System.Windows.Controls.Button
+            {
+                Tag: EditEffectPreset preset,
+            }
+        )
+        {
+            _viewModel.ApplyEditEffectPreset(preset);
+        }
+    }
+
     private void OnEqualizerPresetClick(
         object sender,
         RoutedEventArgs args
@@ -189,6 +206,16 @@ public partial class TrimWindow : Window
         object sender,
         RoutedEventArgs args
     ) => _viewModel.CancelStemIsolation();
+
+    private void OnShowStemSlidersClick(
+        object sender,
+        RoutedEventArgs args
+    ) => _viewModel.SetStemBandView(isBandView: false);
+
+    private void OnShowStemBandClick(
+        object sender,
+        RoutedEventArgs args
+    ) => _viewModel.SetStemBandView(isBandView: true);
 
     private async void OnExportClick(
         object sender,

@@ -24,7 +24,8 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     private TimeSpan? _playhead;
     private SelectionEdge _activeEdge = SelectionEdge.End;
     private string _statusMessage = string.Empty;
-    private double _speedMultiplier = 1;
+    private EditEffectSelection _editEffectSelection =
+        EditEffectSelection.None;
     private GraphicEqualizerSelection _equalizerSelection =
         GraphicEqualizerSelection.Flat;
     private readonly IReadOnlyList<EqualizerBandViewModel>
@@ -34,6 +35,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     private bool _isExporting;
     private bool _isStemSeparating;
     private bool _isSixStemExperimental;
+    private bool _isStemBandView;
     private double _stemProgressPercent;
     private SeparatedStemSet? _separatedStemSet;
     private IReadOnlyList<StemVolumeViewModel> _stemVolumes =
@@ -198,6 +200,23 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<StemVolumeViewModel> StemVolumes =>
         _stemVolumes;
 
+    public bool IsStemBandView => _isStemBandView;
+
+    public bool IsStemSliderView => !_isStemBandView;
+
+    public void SetStemBandView(bool isBandView)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_isStemBandView == isBandView)
+        {
+            return;
+        }
+
+        _isStemBandView = isBandView;
+        OnPropertyChanged(nameof(IsStemBandView));
+        OnPropertyChanged(nameof(IsStemSliderView));
+    }
+
     public bool IsSixStemExperimental
     {
         get => _isSixStemExperimental;
@@ -281,7 +300,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     public double SpeedMultiplier
     {
-        get => _speedMultiplier;
+        get => _editEffectSelection.SpeedMultiplier;
         set
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -290,18 +309,104 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 ClipEffectSettings.MinimumSpeedMultiplier,
                 ClipEffectSettings.MaximumSpeedMultiplier
             );
-            if (_speedMultiplier == normalized)
+            var selection =
+                _editEffectSelection.AdjustSpeed(normalized);
+            if (selection.Equals(_editEffectSelection))
             {
                 return;
             }
 
-            _speedMultiplier = normalized;
+            _editEffectSelection = selection;
             EffectsChanged(
                 nameof(SpeedMultiplier),
-                nameof(SpeedMultiplierText)
+                nameof(SpeedMultiplierText),
+                nameof(EditEffectPreset),
+                nameof(EditEffectPresetText)
             );
         }
     }
+
+    public double ReverbAmountPercent
+    {
+        get => Math.Round(
+            _editEffectSelection.ReverbWetMix * 100
+        );
+        set
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var normalized = Math.Clamp(
+                Math.Round(value),
+                ClipEffectSettings.MinimumReverbWetMix * 100,
+                ClipEffectSettings.MaximumReverbWetMix * 100
+            );
+            var selection = _editEffectSelection.AdjustReverb(
+                normalized / 100
+            );
+            if (selection.Equals(_editEffectSelection))
+            {
+                return;
+            }
+
+            _editEffectSelection = selection;
+            EffectsChanged(
+                nameof(ReverbAmountPercent),
+                nameof(ReverbAmountText),
+                nameof(EditEffectPreset),
+                nameof(EditEffectPresetText)
+            );
+        }
+    }
+
+    public double RotationRateHertz
+    {
+        get => _editEffectSelection.RotationRateHertz;
+        set
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var rounded = Math.Round(value, 2);
+            var normalized =
+                rounded <= 0
+                    ? 0
+                    : Math.Clamp(
+                        rounded,
+                        ClipEffectSettings
+                            .MinimumRotationRateHertz,
+                        ClipEffectSettings
+                            .MaximumRotationRateHertz
+                    );
+            var selection =
+                _editEffectSelection.AdjustRotation(normalized);
+            if (selection.Equals(_editEffectSelection))
+            {
+                return;
+            }
+
+            _editEffectSelection = selection;
+            EffectsChanged(
+                nameof(RotationRateHertz),
+                nameof(RotationRateText),
+                nameof(EditEffectPreset),
+                nameof(EditEffectPresetText)
+            );
+        }
+    }
+
+    public EditEffectPreset EditEffectPreset =>
+        _editEffectSelection.Preset;
+
+    public string EditEffectPresetText =>
+        _editEffectSelection.Preset switch
+        {
+            EditEffectPreset.None => AppStrings.EditPresetNone,
+            EditEffectPreset.SlowedReverb =>
+                AppStrings.SlowedReverb,
+            EditEffectPreset.SpedUp => AppStrings.SpedUp,
+            EditEffectPreset.EightDAudio =>
+                AppStrings.EightDAudio,
+            EditEffectPreset.Custom =>
+                AppStrings.EditPresetCustom,
+            _ => throw new InvalidOperationException(),
+        };
 
     public IReadOnlyList<EqualizerBandViewModel> EqualizerBands =>
         _equalizerBands;
@@ -376,6 +481,22 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             $"{SpeedMultiplier:0.00}×"
         );
 
+    public string ReverbAmountText =>
+        ReverbAmountPercent == 0
+            ? AppStrings.EffectOff
+            : string.Create(
+                CultureInfo.CurrentCulture,
+                $"{ReverbAmountPercent:0}%"
+            );
+
+    public string RotationRateText =>
+        RotationRateHertz == 0
+            ? AppStrings.EffectOff
+            : string.Create(
+                CultureInfo.CurrentCulture,
+                $"{1 / RotationRateHertz:0.0}s/cycle"
+            );
+
     public string LoopCountText =>
         LoopCount == 1
             ? AppStrings.EffectOff
@@ -383,6 +504,28 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 CultureInfo.CurrentCulture,
                 $"{LoopCount}×"
             );
+
+    public void ApplyEditEffectPreset(EditEffectPreset preset)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var selection = EditEffectSelection.FromPreset(preset);
+        if (selection.Equals(_editEffectSelection))
+        {
+            return;
+        }
+
+        _editEffectSelection = selection;
+        EffectsChanged(
+            nameof(SpeedMultiplier),
+            nameof(SpeedMultiplierText),
+            nameof(ReverbAmountPercent),
+            nameof(ReverbAmountText),
+            nameof(RotationRateHertz),
+            nameof(RotationRateText),
+            nameof(EditEffectPreset),
+            nameof(EditEffectPresetText)
+        );
+    }
 
     public void ApplyEqualizerPreset(EqualizerPreset preset)
     {
@@ -910,7 +1053,10 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             {
                 SpeedMultiplier = SpeedMultiplier,
                 EqualizerCurve = _equalizerSelection.Curve,
+                ReverbWetMix =
+                    ReverbAmountPercent / 100,
                 LoopCount = LoopCount,
+                RotationRateHertz = RotationRateHertz,
             },
             _lifetimeCancellation.Token
         );

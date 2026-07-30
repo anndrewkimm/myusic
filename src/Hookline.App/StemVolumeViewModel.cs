@@ -56,6 +56,7 @@ public sealed class StemVolumeViewModel
             _volumePercent = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(VolumeText));
+            OnPropertyChanged(nameof(BandVolumeText));
             _changed();
         }
     }
@@ -65,6 +66,15 @@ public sealed class StemVolumeViewModel
             CultureInfo.CurrentCulture,
             $"{VolumePercent:0}%"
         );
+
+    public string BandVolumeText =>
+        VolumePercent switch
+        {
+            <= 0 => AppStrings.StemMuted,
+            < 75 => AppStrings.StemQuiet,
+            <= 115 => AppStrings.StemNatural,
+            _ => AppStrings.StemLoud,
+        };
 
     private void OnPropertyChanged(
         [CallerMemberName] string? propertyName = null

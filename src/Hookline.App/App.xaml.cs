@@ -21,9 +21,14 @@ public partial class App : System.Windows.Application
     private StemIsolationService? _stemIsolationService;
     private GlobalHotkey? _hotkey;
     private TrayIcon? _trayIcon;
-    private TrimWindow? _trimWindow;
-    private ClipCatalogWindow? _catalogWindow;
-    private readonly Dictionary<long, TrimWindow> _importWindows = [];
+    private readonly ManagedWindowSlot<TrimWindow> _trimWindowSlot =
+        new();
+    private readonly ManagedWindowSlot<ClipCatalogWindow>
+        _catalogWindowSlot = new();
+    private readonly Dictionary<
+        long,
+        ManagedWindowSlot<TrimWindow>
+    > _importWindowSlots = [];
     private bool _isImporting;
     private bool _isExiting;
 
@@ -123,14 +128,14 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        if (_trimWindow is not null)
+        if (
+            _trimWindowSlot.TryActivateExisting(
+                IsWindowUsable,
+                RestoreAndActivateWindow,
+                CloseWindow
+            )
+        )
         {
-            if (_trimWindow.WindowState == WindowState.Minimized)
-            {
-                _trimWindow.WindowState = WindowState.Normal;
-            }
-
-            _trimWindow.Activate();
             return;
         }
 
@@ -152,17 +157,12 @@ public partial class App : System.Windows.Application
                 Track = track,
                 Snapshot = _captureService.Query(track.InstanceId),
             };
-            var window = CreateTrimWindow(session);
-            _trimWindow = window;
-            window.Closed += (_, _) =>
-            {
-                if (ReferenceEquals(_trimWindow, window))
-                {
-                    _trimWindow = null;
-                }
-            };
-            window.Show();
-            window.Activate();
+            _trimWindowSlot.TryShowNew(
+                () => CreateTrimWindow(session),
+                SubscribeWindowClosed,
+                ShowAndActivateWindow,
+                CloseWindow
+            );
         }
         catch (Exception exception)
         {
@@ -233,15 +233,27 @@ public partial class App : System.Windows.Application
 
             var session =
                 ImportedAudioTrimSessionFactory.Create(imported);
-            var window = CreateTrimWindow(session);
-            _importWindows.Add(
-                session.Track.InstanceId,
-                window
-            );
-            window.Closed += (_, _) =>
-                _importWindows.Remove(session.Track.InstanceId);
-            window.Show();
-            window.Activate();
+            var trackInstanceId = session.Track.InstanceId;
+            var slot = new ManagedWindowSlot<TrimWindow>();
+            _importWindowSlots.Add(trackInstanceId, slot);
+            try
+            {
+                slot.TryShowNew(
+                    () => CreateTrimWindow(session),
+                    SubscribeWindowClosed,
+                    ShowAndActivateWindow,
+                    CloseWindow,
+                    _ =>
+                        _importWindowSlots.Remove(
+                            trackInstanceId
+                        )
+                );
+            }
+            catch
+            {
+                _importWindowSlots.Remove(trackInstanceId);
+                throw;
+            }
         }
         catch (OperationCanceledException)
             when (_startupCancellation.IsCancellationRequested)
@@ -287,6 +299,33 @@ public partial class App : System.Windows.Application
         return new TrimWindow(viewModel);
     }
 
+    private static bool IsWindowUsable(Window window) =>
+        window.IsLoaded && window.IsVisible;
+
+    private static void RestoreAndActivateWindow(Window window)
+    {
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Activate();
+    }
+
+    private static void ShowAndActivateWindow(Window window)
+    {
+        window.Show();
+        window.Activate();
+    }
+
+    private static void SubscribeWindowClosed(
+        Window window,
+        EventHandler handler
+    ) => window.Closed += handler;
+
+    private static void CloseWindow(Window window) =>
+        window.Close();
+
     private void OnCaptureStatusChanged(
         object? sender,
         AudioCaptureStatusChangedEventArgs args
@@ -324,14 +363,14 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        if (_catalogWindow is not null)
+        if (
+            _catalogWindowSlot.TryActivateExisting(
+                IsWindowUsable,
+                RestoreAndActivateWindow,
+                CloseWindow
+            )
+        )
         {
-            if (_catalogWindow.WindowState == WindowState.Minimized)
-            {
-                _catalogWindow.WindowState = WindowState.Normal;
-            }
-
-            _catalogWindow.Activate();
             return;
         }
 
@@ -346,26 +385,25 @@ public partial class App : System.Windows.Application
 
         try
         {
-            var player = new CatalogAudioPlayer(Dispatcher);
-            var viewModel = new ClipCatalogWindowViewModel(
-                _catalogService,
-                player,
-                _retrimLauncher
-            );
-            var window = new ClipCatalogWindow(
-                viewModel,
-                _catalogService
-            );
-            _catalogWindow = window;
-            window.Closed += (_, _) =>
-            {
-                if (ReferenceEquals(_catalogWindow, window))
+            _catalogWindowSlot.TryShowNew(
+                () =>
                 {
-                    _catalogWindow = null;
-                }
-            };
-            window.Show();
-            window.Activate();
+                    var player = new CatalogAudioPlayer(Dispatcher);
+                    var viewModel =
+                        new ClipCatalogWindowViewModel(
+                            _catalogService,
+                            player,
+                            _retrimLauncher
+                        );
+                    return new ClipCatalogWindow(
+                        viewModel,
+                        _catalogService
+                    );
+                },
+                SubscribeWindowClosed,
+                ShowAndActivateWindow,
+                CloseWindow
+            );
         }
         catch (Exception exception)
         {
@@ -394,14 +432,14 @@ public partial class App : System.Windows.Application
 
         _isExiting = true;
         _startupCancellation.Cancel();
-        _trimWindow?.Close();
-        _catalogWindow?.Close();
-        foreach (var window in _importWindows.Values.ToArray())
+        _trimWindowSlot.CloseCurrent(CloseWindow);
+        _catalogWindowSlot.CloseCurrent(CloseWindow);
+        foreach (var slot in _importWindowSlots.Values.ToArray())
         {
-            window.Close();
+            slot.CloseCurrent(CloseWindow);
         }
 
-        _importWindows.Clear();
+        _importWindowSlots.Clear();
         _retrimLauncher?.CloseAll();
         _hotkey?.Dispose();
         _hotkey = null;

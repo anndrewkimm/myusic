@@ -33,8 +33,16 @@ Spec 009 (clip sound effects: speed change, bass boost, loop/extend, applied liv
 
 Spec 010 (10-band graphic equalizer with one-click character presets — Bass Boost, Treble Boost, Vocal, Bright, Mellow — grounded in Sony Headphones Connect's real preset naming and standard ISO EQ band frequencies) is `DONE`. Reviewed independently: build/tests clean (92/92), per-stage clamping between cascaded filters (not just at the end) is a genuinely careful detail, and the neutral fast-path guarantee carries forward correctly from spec 009. Replaced spec 009's single bass-boost knob rather than keeping both.
 
-Spec 011 (stem isolation — vocals/bass/drums/other, modeled on iZotope RX's Music Rebalance, via a local ONNX-exported Demucs model through `Microsoft.ML.OnnxRuntime`) is `IN_PROGRESS` with Codex. Explicitly scoped to a real, verified granularity ceiling — 4 solid stems, optionally 6 with acknowledged quality tradeoffs — not per-instrument isolation, which isn't achievable with current technology regardless of tool.
-- The product goal stays the same: leave the app running, hear something interesting, and get a clean clip with minimal effort.
+Spec 011 (stem isolation — vocals/bass/drums/other, modeled on iZotope RX's Music Rebalance, via a local ONNX-exported Demucs model through `Microsoft.ML.OnnxRuntime`) is `DONE`. Reviewed independently 2026-07-28: build/tests clean (102/102), all 7 acceptance criteria and all 7 edge cases verified against actual code — export path has zero stem-related special-casing, overlap-add math hand-traced correct, cancellation/staleness handling solid. Two minor non-blocking hardening notes left in the spec (a shutdown-ordering edge case, redundant re-hashing per click) but nothing that blocked DONE. Explicitly scoped to a real, verified granularity ceiling — 4 solid stems, optionally 6 with acknowledged quality tradeoffs — not per-instrument isolation, which isn't achievable with current technology regardless of tool.
+
+**All of Phase 1 through the originally-scoped backlog (specs 001-011) is now `DONE`.** The product goal stays the same: leave the app running, hear something interesting, and get a clean clip with minimal effort.
+
+Two new specs came out of a 2026-07-28 conversation about giving clips a "TikTok edit" feel:
+
+- **Spec 013 (reverb, 8D auto-pan, and one-click "Slowed + Reverb"/"Sped Up"/"8D Audio" presets)** was implemented by Codex the same day and is at `REVIEW`, awaiting independent review.
+- **Spec 012 (playful "band view" for the spec-011 stem remixer — characters instead of sliders)** is `DRAFT`, intentionally held back — going in order, 013 first.
+
+**Spec 014 (fix: trim/catalog windows can get permanently stuck invisible after a failed show) jumped the queue on 2026-07-28**, same reasoning as spec 006: it breaks the app's one required interaction (the global hotkey that opens the trim window went silently unresponsive during live testing). Root cause traced to `App.xaml.cs` assigning `_trimWindow`/`_catalogWindow` before `Show()` runs, with no reset on failure — the same defect shape in both the trim and catalog window paths. `READY` for Codex, ahead of 012.
 
 ## Phase 1 — "It just works" (this is the MVP, specs 001–004)
 

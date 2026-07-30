@@ -44,7 +44,17 @@ public static class AppStrings
     public const string Export = "Export MP3";
     public const string Exporting = "Exporting…";
     public const string Effects = "EFFECTS";
+    public const string EditStyle = "Edit style";
+    public const string EditPresetNone = "None";
+    public const string EditPresetCustom = "Custom";
+    public const string SlowedReverb = "Slowed + Reverb";
+    public const string SpedUp = "Sped Up";
+    public const string EightDAudio = "8D Audio";
     public const string Speed = "Speed";
+    public const string Reverb = "Reverb";
+    public const string Rotation = "8D rotation";
+    public const string HeadphonesHint =
+        "Best heard on headphones";
     public const string BassBoost = "Bass boost";
     public const string Loop = "Loop";
     public const string EffectOff = "Off";
@@ -96,6 +106,15 @@ public static class AppStrings
     public const string StemOther = "Other";
     public const string StemGuitar = "Guitar";
     public const string StemPiano = "Piano";
+    public const string StemMixView = "MIX VIEW";
+    public const string StemSlidersView = "Sliders";
+    public const string StemBandView = "Band";
+    public const string StemBandHint =
+        "Pull a character forward to hear more, or push it back to quiet it.";
+    public const string StemMuted = "Muted";
+    public const string StemQuiet = "Quiet";
+    public const string StemNatural = "Natural";
+    public const string StemLoud = "Loud";
     public const string ExcludedWarning =
         "This selection crosses a paused or excluded span. Hookline will omit that span.";
     public const string OutputFolder = "SAVES TO";

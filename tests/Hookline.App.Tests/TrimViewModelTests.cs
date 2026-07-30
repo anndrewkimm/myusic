@@ -137,6 +137,16 @@ public sealed class TrimViewModelTests
         await fixture.ViewModel.ExportAsync();
 
         Assert.Equal(1, fixture.ViewModel.SpeedMultiplier);
+        Assert.Equal(0, fixture.ViewModel.ReverbAmountPercent);
+        Assert.Equal(0, fixture.ViewModel.RotationRateHertz);
+        Assert.Equal(
+            EditEffectPreset.None,
+            fixture.ViewModel.EditEffectPreset
+        );
+        Assert.Equal(
+            AppStrings.EditPresetNone,
+            fixture.ViewModel.EditEffectPresetText
+        );
         Assert.Equal(1, fixture.ViewModel.LoopCount);
         Assert.Equal(
             EqualizerPreset.Flat,
@@ -152,6 +162,98 @@ public sealed class TrimViewModelTests
         Assert.Equal(
             TimeSpan.FromSeconds(1),
             fixture.Exporter.LastSelection?.Duration
+        );
+    }
+
+    [Fact]
+    public async Task EditPresetPreviewAndExportUseTheSameLiveOutput()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromSeconds(1.25)
+        );
+        fixture.ViewModel.ApplyEditEffectPreset(
+            EditEffectPreset.SlowedReverb
+        );
+
+        fixture.ViewModel.TogglePreview();
+        await fixture.ViewModel.ExportAsync();
+
+        Assert.NotNull(fixture.Preview.LastSnapshot);
+        Assert.NotNull(fixture.Exporter.LastSelection);
+        Assert.True(
+            fixture.Preview.LastSnapshot!.Audio.Span.SequenceEqual(
+                fixture.Exporter.LastSelection!.Audio.Span
+            )
+        );
+        Assert.Equal(
+            TimeSpan.FromSeconds(3.25),
+            fixture.Exporter.LastSelection.Duration
+        );
+    }
+
+    [Fact]
+    public void EditPresetsReplaceValuesAndManualChangesBecomeCustom()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromSeconds(1.25)
+        );
+        fixture.ViewModel.TogglePreview();
+
+        fixture.ViewModel.ApplyEditEffectPreset(
+            EditEffectPreset.SlowedReverb
+        );
+
+        Assert.Equal(
+            EditEffectPreset.SlowedReverb,
+            fixture.ViewModel.EditEffectPreset
+        );
+        Assert.Equal(0.8, fixture.ViewModel.SpeedMultiplier);
+        Assert.Equal(55, fixture.ViewModel.ReverbAmountPercent);
+        Assert.Equal(0, fixture.ViewModel.RotationRateHertz);
+        Assert.Equal(2, fixture.Preview.PlayCallCount);
+
+        fixture.ViewModel.ReverbAmountPercent = 50;
+
+        Assert.Equal(
+            EditEffectPreset.Custom,
+            fixture.ViewModel.EditEffectPreset
+        );
+        Assert.Equal(
+            AppStrings.EditPresetCustom,
+            fixture.ViewModel.EditEffectPresetText
+        );
+        Assert.Equal(3, fixture.Preview.PlayCallCount);
+
+        fixture.ViewModel.ApplyEditEffectPreset(
+            EditEffectPreset.EightDAudio
+        );
+
+        Assert.Equal(
+            EditEffectPreset.EightDAudio,
+            fixture.ViewModel.EditEffectPreset
+        );
+        Assert.Equal(1, fixture.ViewModel.SpeedMultiplier);
+        Assert.Equal(20, fixture.ViewModel.ReverbAmountPercent);
+        Assert.Equal(0.1, fixture.ViewModel.RotationRateHertz);
+        Assert.Equal(4, fixture.Preview.PlayCallCount);
+
+        fixture.ViewModel.SpeedMultiplier = 1.1;
+        Assert.Equal(
+            EditEffectPreset.Custom,
+            fixture.ViewModel.EditEffectPreset
+        );
+
+        fixture.ViewModel.ApplyEditEffectPreset(
+            EditEffectPreset.EightDAudio
+        );
+        fixture.ViewModel.RotationRateHertz = 0.15;
+        Assert.Equal(
+            EditEffectPreset.Custom,
+            fixture.ViewModel.EditEffectPreset
         );
     }
 
@@ -341,6 +443,10 @@ public sealed class TrimViewModelTests
         );
 
         fixture.ViewModel.StemVolumes[0].VolumePercent = 0;
+        fixture.ViewModel.SetStemBandView(isBandView: true);
+        fixture.ViewModel.ApplyEditEffectPreset(
+            EditEffectPreset.SlowedReverb
+        );
         fixture.ViewModel.TogglePreview();
         await fixture.ViewModel.ExportAsync();
 
@@ -355,6 +461,40 @@ public sealed class TrimViewModelTests
             1,
             fixture.StemService.SeparateCallCount
         );
+    }
+
+    [Fact]
+    public async Task SwitchingStemViewsPreservesTheExactSharedValues()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(1)
+        );
+        await fixture.ViewModel.IsolateStemsAsync(
+            downloadModel: false
+        );
+        var controls = fixture.ViewModel.StemVolumes.ToArray();
+        controls[0].VolumePercent = 43;
+        controls[1].VolumePercent = 127;
+
+        Assert.True(fixture.ViewModel.IsStemSliderView);
+        Assert.False(fixture.ViewModel.IsStemBandView);
+
+        fixture.ViewModel.SetStemBandView(isBandView: true);
+
+        Assert.True(fixture.ViewModel.IsStemBandView);
+        Assert.False(fixture.ViewModel.IsStemSliderView);
+        Assert.Equal(43, controls[0].VolumePercent);
+        Assert.Equal(127, controls[1].VolumePercent);
+        Assert.Same(controls[0], fixture.ViewModel.StemVolumes[0]);
+        Assert.Same(controls[1], fixture.ViewModel.StemVolumes[1]);
+
+        fixture.ViewModel.SetStemBandView(isBandView: false);
+
+        Assert.True(fixture.ViewModel.IsStemSliderView);
+        Assert.Equal(43, controls[0].VolumePercent);
+        Assert.Equal(127, controls[1].VolumePercent);
     }
 
     [Fact]

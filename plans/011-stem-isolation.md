@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003]
 ---
@@ -77,3 +77,13 @@ I've got a clip I like, but the vocals are a little loud for what I want, or I w
 - Added a separate, scroll-safe stem-isolation panel in the trim window. Four stems are the default; six stems are opt-in and visibly marked experimental/lower quality. Completed stems get independent 0-150% controls that live-remix preview and export.
 - The remix feeds the existing speed/EQ/loop processor and unchanged tagged-MP3/catalog exporter. Selection edits invalidate stale stems, operations are capped at five minutes, and separation never runs on the UI thread.
 - Added synthetic mixdown/clipping tests, cache integrity/reuse tests, view-model download/separation/cancellation/4-vs-6/preview-export tests, and an environment-gated real-model contract test (`HOOKLINE_FOUR_STEM_MODEL_PATH`). All 102 tests pass in Debug and Release. The large model was intentionally not downloaded during automated validation; real inference remains separately gated as required.
+
+## Review notes
+
+Reviewed 2026-07-28: build clean (0 warnings/errors), 102/102 tests pass independently confirmed. All 7 acceptance criteria and all 7 edge cases verified met against actual code (not just checkbox trust) — export path confirmed to have zero stem-related special-casing, overlap-add math hand-traced and correct, cancellation/staleness handling confirmed race-free at the level that matters. No stubs/TODOs, no scope creep beyond spec.
+
+Two minor, non-blocking hardening gaps noted for awareness, not required for DONE:
+- `StemIsolationService`/`StemModelCache` check `_disposed` only at method entry, not after each `await`; app shutdown doesn't await in-flight isolation/download calls before disposing. A straggling background task could hit `ObjectDisposedException` on shutdown — currently swallowed by the generic exception handler into a harmless status message on an orphaned view model, but not airtight.
+- Each "Isolate stems" click re-hashes the full cached model file twice (once in the code-behind pre-check, once inside `StemIsolationService.SeparateAsync`) — wasted CPU, not a correctness issue.
+
+Status: DONE.

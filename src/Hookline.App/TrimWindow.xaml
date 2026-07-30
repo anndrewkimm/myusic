@@ -263,6 +263,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <DockPanel Margin="0,0,0,8">
                         <TextBlock
@@ -277,10 +278,60 @@
                             Foreground="{StaticResource MutedTextBrush}"
                             Text="{x:Static local:AppStrings.Effects}" />
                     </DockPanel>
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="1" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="{x:Static local:AppStrings.EditStyle}" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                FontFamily="Segoe UI Semibold"
+                                FontSize="11"
+                                Foreground="{StaticResource AccentBrush}"
+                                Text="{Binding EditEffectPresetText}" />
+                        </StackPanel>
+                        <StackPanel
+                            Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                            <Button
+                                Margin="0,0,5,0"
+                                Padding="9,4"
+                                FontSize="10"
+                                Tag="{x:Static audio:EditEffectPreset.SlowedReverb}"
+                                Click="OnEditEffectPresetClick"
+                                Content="{x:Static local:AppStrings.SlowedReverb}" />
+                            <Button
+                                Margin="0,0,5,0"
+                                Padding="9,4"
+                                FontSize="10"
+                                Tag="{x:Static audio:EditEffectPreset.SpedUp}"
+                                Click="OnEditEffectPresetClick"
+                                Content="{x:Static local:AppStrings.SpedUp}" />
+                            <Button
+                                Padding="9,4"
+                                FontSize="10"
+                                Tag="{x:Static audio:EditEffectPreset.EightDAudio}"
+                                Click="OnEditEffectPresetClick"
+                                Content="{x:Static local:AppStrings.EightDAudio}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
@@ -312,6 +363,56 @@
                                     DockPanel.Dock="Right"
                                     FontFamily="Consolas"
                                     Foreground="{StaticResource AccentBrush}"
+                                    Text="{Binding ReverbAmountText}" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Text="{x:Static local:AppStrings.Reverb}" />
+                            </DockPanel>
+                            <Slider
+                                Margin="0,5,0,0"
+                                Minimum="0"
+                                Maximum="100"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                IsMoveToPointEnabled="True"
+                                automation:AutomationProperties.Name="{x:Static local:AppStrings.Reverb}"
+                                Value="{Binding ReverbAmountPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="4">
+                            <DockPanel>
+                                <TextBlock
+                                    DockPanel.Dock="Right"
+                                    FontFamily="Consolas"
+                                    Foreground="{StaticResource AccentBrush}"
+                                    Text="{Binding RotationRateText}" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Text="{x:Static local:AppStrings.Rotation}" />
+                            </DockPanel>
+                            <Slider
+                                Margin="0,5,0,0"
+                                Minimum="0"
+                                Maximum="0.25"
+                                TickFrequency="0.05"
+                                IsSnapToTickEnabled="True"
+                                IsMoveToPointEnabled="True"
+                                automation:AutomationProperties.Name="{x:Static local:AppStrings.Rotation}"
+                                automation:AutomationProperties.HelpText="{x:Static local:AppStrings.HeadphonesHint}"
+                                Value="{Binding RotationRateHertz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock
+                                Margin="0,2,0,0"
+                                FontSize="9"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="{x:Static local:AppStrings.HeadphonesHint}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="6">
+                            <DockPanel>
+                                <TextBlock
+                                    DockPanel.Dock="Right"
+                                    FontFamily="Consolas"
+                                    Foreground="{StaticResource AccentBrush}"
                                     Text="{Binding LoopCountText}" />
                                 <TextBlock
                                     FontSize="12"
@@ -329,7 +430,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                    <Grid Grid.Row="3" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -405,7 +506,7 @@
                     </Grid>
 
                     <Border
-                        Grid.Row="3"
+                        Grid.Row="4"
                         Margin="0,10,0,0"
                         Padding="8"
                         Background="#111620"
@@ -559,7 +660,7 @@
                             VerticalAlignment="Center"
                             Minimum="0"
                             Maximum="100"
-                            Value="{Binding StemProgressPercent}" />
+                            Value="{Binding StemProgressPercent, Mode=OneWay}" />
                         <TextBlock
                             Grid.Column="1"
                             Margin="10,0,0,0"
@@ -595,40 +696,203 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <ItemsControl ItemsSource="{Binding StemVolumes}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Rows="1" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="6,0">
-                                        <DockPanel>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Margin="6,0,6,7">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource MutedTextBrush}"
+                                    Text="{x:Static local:AppStrings.StemMixView}" />
+                                <StackPanel
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                                    <Button
+                                        Margin="0,0,5,0"
+                                        Padding="9,4"
+                                        FontSize="10"
+                                        Click="OnShowStemSlidersClick"
+                                        Content="{x:Static local:AppStrings.StemSlidersView}">
+                                        <Button.Style>
+                                            <Style
+                                                TargetType="Button"
+                                                BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger
+                                                        Binding="{Binding IsStemSliderView}"
+                                                        Value="True">
+                                                        <Setter
+                                                            Property="BorderBrush"
+                                                            Value="{StaticResource AccentBrush}" />
+                                                        <Setter
+                                                            Property="Background"
+                                                            Value="#263A38" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button
+                                        Padding="9,4"
+                                        FontSize="10"
+                                        Click="OnShowStemBandClick"
+                                        Content="{x:Static local:AppStrings.StemBandView}">
+                                        <Button.Style>
+                                            <Style
+                                                TargetType="Button"
+                                                BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger
+                                                        Binding="{Binding IsStemBandView}"
+                                                        Value="True">
+                                                        <Setter
+                                                            Property="BorderBrush"
+                                                            Value="{StaticResource AccentBrush}" />
+                                                        <Setter
+                                                            Property="Background"
+                                                            Value="#263A38" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock
+                                Grid.Row="1"
+                                Margin="6,0,6,7"
+                                FontSize="10"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="{x:Static local:AppStrings.StemBandHint}"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter
+                                            Property="Visibility"
+                                            Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger
+                                                Binding="{Binding IsStemBandView}"
+                                                Value="True">
+                                                <Setter
+                                                    Property="Visibility"
+                                                    Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <ItemsControl
+                                Grid.Row="2"
+                                ItemsSource="{Binding StemVolumes}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter
+                                            Property="Visibility"
+                                            Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger
+                                                Binding="{Binding IsStemSliderView}"
+                                                Value="True">
+                                                <Setter
+                                                    Property="Visibility"
+                                                    Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Rows="1" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="6,0">
+                                            <DockPanel>
+                                                <TextBlock
+                                                    DockPanel.Dock="Right"
+                                                    Margin="6,0,0,0"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Foreground="{StaticResource AccentBrush}"
+                                                    Text="{Binding VolumeText}" />
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    Text="{Binding Name}" />
+                                            </DockPanel>
+                                            <Slider
+                                                Margin="0,4,0,0"
+                                                Minimum="0"
+                                                Maximum="150"
+                                                TickFrequency="5"
+                                                IsSnapToTickEnabled="True"
+                                                IsMoveToPointEnabled="True"
+                                                automation:AutomationProperties.Name="{Binding Name}"
+                                                Value="{Binding VolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <ItemsControl
+                                Grid.Row="2"
+                                IsEnabled="{Binding AreEffectsEnabled}"
+                                ItemsSource="{Binding StemVolumes}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter
+                                            Property="Visibility"
+                                            Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger
+                                                Binding="{Binding IsStemBandView}"
+                                                Value="True">
+                                                <Setter
+                                                    Property="Visibility"
+                                                    Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Rows="1" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="4,0">
                                             <TextBlock
-                                                DockPanel.Dock="Right"
-                                                Margin="6,0,0,0"
-                                                FontFamily="Consolas"
-                                                FontSize="10"
-                                                Foreground="{StaticResource AccentBrush}"
-                                                Text="{Binding VolumeText}" />
-                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                FontFamily="Segoe UI Semibold"
                                                 FontSize="11"
                                                 Text="{Binding Name}" />
-                                        </DockPanel>
-                                        <Slider
-                                            Margin="0,4,0,0"
-                                            Minimum="0"
-                                            Maximum="150"
-                                            TickFrequency="5"
-                                            IsSnapToTickEnabled="True"
-                                            IsMoveToPointEnabled="True"
-                                            automation:AutomationProperties.Name="{Binding Name}"
-                                            Value="{Binding VolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                            <local:StemBandAvatarControl
+                                                Height="132"
+                                                MinWidth="64"
+                                                Margin="0,3"
+                                                automation:AutomationProperties.Name="{Binding Name}"
+                                                automation:AutomationProperties.HelpText="{x:Static local:AppStrings.StemBandHint}"
+                                                StemKind="{Binding Kind}"
+                                                VolumePercent="{Binding VolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                FontSize="10"
+                                                Foreground="{StaticResource AccentBrush}"
+                                                Text="{Binding BandVolumeText}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>

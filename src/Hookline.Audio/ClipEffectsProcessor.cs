@@ -47,6 +47,17 @@ public static class ClipEffectsProcessor
             );
         }
 
+        if (settings.ReverbWetMix > 0)
+        {
+            audio = SchroederReverb.Apply(
+                audio.Span,
+                source.Format,
+                settings.ReverbWetMix,
+                plan.ReverbFrameCount,
+                cancellationToken
+            );
+        }
+
         if (settings.LoopCount > 1)
         {
             audio = AssembleLoops(
@@ -55,6 +66,16 @@ public static class ClipEffectsProcessor
                 settings.LoopCount,
                 plan.FinalFrameCount,
                 plan.LoopCrossfadeFrameCount,
+                cancellationToken
+            );
+        }
+
+        if (settings.RotationRateHertz > 0)
+        {
+            audio = StereoRotationEffect.Apply(
+                audio.Span,
+                source.Format,
+                settings.RotationRateHertz,
                 cancellationToken
             );
         }
@@ -92,7 +113,7 @@ public static class ClipEffectsProcessor
             source.Audio.Length / format.BlockAlign;
         if (sourceFrameCount == 0)
         {
-            return new ProcessingPlan(0, 0, 0);
+            return new ProcessingPlan(0, 0, 0, 0);
         }
 
         var durationCapFrames = (long)Math.Floor(
@@ -117,16 +138,29 @@ public static class ClipEffectsProcessor
             desiredSpeedFrames,
             expansionCapFrames
         );
+        var desiredReverbFrames =
+            settings.ReverbWetMix > 0
+                ? (long)speedFrameCount
+                    + (long)Math.Round(
+                        SchroederReverb.TailDuration.TotalSeconds
+                            * format.SampleRate,
+                        MidpointRounding.AwayFromZero
+                    )
+                : speedFrameCount;
+        var reverbFrameCount = (int)Math.Min(
+            desiredReverbFrames,
+            expansionCapFrames
+        );
         var crossfadeFrameCount =
             settings.LoopCount == 1
                 ? 0
                 : GetLoopCrossfadeFrameCount(
-                    speedFrameCount,
+                    reverbFrameCount,
                     format.SampleRate
                 );
         var framesPerAdditionalLoop =
-            speedFrameCount - crossfadeFrameCount;
-        long desiredFinalFrames = speedFrameCount;
+            reverbFrameCount - crossfadeFrameCount;
+        long desiredFinalFrames = reverbFrameCount;
         for (
             var repetition = 1;
             repetition < settings.LoopCount
@@ -143,6 +177,7 @@ public static class ClipEffectsProcessor
 
         return new ProcessingPlan(
             speedFrameCount,
+            reverbFrameCount,
             (int)desiredFinalFrames,
             crossfadeFrameCount
         );
@@ -486,19 +521,15 @@ public static class ClipEffectsProcessor
             );
         }
 
-        if (
-            !double.IsFinite(settings.SpeedMultiplier)
-            || settings.SpeedMultiplier
-                < ClipEffectSettings.MinimumSpeedMultiplier
-            || settings.SpeedMultiplier
-                > ClipEffectSettings.MaximumSpeedMultiplier
-        )
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(settings),
-                AudioStrings.InvalidEffectSpeed
-            );
-        }
+        ClipEffectSettings.ValidateSpeed(
+            settings.SpeedMultiplier
+        );
+        ClipEffectSettings.ValidateReverb(
+            settings.ReverbWetMix
+        );
+        ClipEffectSettings.ValidateRotation(
+            settings.RotationRateHertz
+        );
 
         if (
             settings.LoopCount
@@ -518,6 +549,7 @@ public static class ClipEffectsProcessor
 
     private sealed record ProcessingPlan(
         int SpeedFrameCount,
+        int ReverbFrameCount,
         int FinalFrameCount,
         int LoopCrossfadeFrameCount
     );
