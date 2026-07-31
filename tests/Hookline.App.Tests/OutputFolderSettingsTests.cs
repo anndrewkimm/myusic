@@ -122,6 +122,34 @@ public sealed class OutputFolderSettingsTests
         );
     }
 
+    [Fact]
+    public void UrlImportNoticeIsShownOnlyOnce()
+    {
+        using var fixture = new SettingsFixture();
+        var first = new OutputFolderSettings(
+            fixture.SettingsPath,
+            new FakeDetector()
+        );
+
+        Assert.True(first.ShouldShowUrlImportNotice);
+        first.MarkUrlImportNoticeShown();
+
+        var second = new OutputFolderSettings(
+            fixture.SettingsPath,
+            new FakeDetector()
+        );
+        Assert.False(second.ShouldShowUrlImportNotice);
+
+        second.DismissSpotifyLocalFilesHint();
+        var afterOtherSettingChange = new OutputFolderSettings(
+            fixture.SettingsPath,
+            new FakeDetector()
+        );
+        Assert.False(
+            afterOtherSettingChange.ShouldShowUrlImportNotice
+        );
+    }
+
     private sealed class SettingsFixture : IDisposable
     {
         private readonly string _temporaryDirectory;

@@ -12,12 +12,14 @@ internal sealed class TrayIcon : IDisposable
     public TrayIcon(
         Action open,
         Action importAudioFile,
+        Action importFromUrl,
         Action openLibrary,
         Action exit
     )
     {
         ArgumentNullException.ThrowIfNull(open);
         ArgumentNullException.ThrowIfNull(importAudioFile);
+        ArgumentNullException.ThrowIfNull(importFromUrl);
         ArgumentNullException.ThrowIfNull(openLibrary);
         ArgumentNullException.ThrowIfNull(exit);
 
@@ -30,6 +32,10 @@ internal sealed class TrayIcon : IDisposable
             AppStrings.TrayImport
         );
         importItem.Click += (_, _) => importAudioFile();
+        var importFromUrlItem = new Forms.ToolStripMenuItem(
+            AppStrings.TrayImportFromUrl
+        );
+        importFromUrlItem.Click += (_, _) => importFromUrl();
         var libraryItem = new Forms.ToolStripMenuItem(
             AppStrings.TrayLibrary
         );
@@ -40,6 +46,7 @@ internal sealed class TrayIcon : IDisposable
         exitItem.Click += (_, _) => exit();
         _menu.Items.Add(openItem);
         _menu.Items.Add(importItem);
+        _menu.Items.Add(importFromUrlItem);
         _menu.Items.Add(libraryItem);
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add(exitItem);

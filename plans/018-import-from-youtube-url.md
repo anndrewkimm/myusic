@@ -1,5 +1,5 @@
 ---
-status: READY
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [008, 017]
 ---
@@ -162,3 +162,22 @@ framing rather than becoming something else.
   always silently pick the best available — recommend always picking the
   best available, consistent with the app's "no manual steps" ethos
   elsewhere.
+
+## What shipped
+
+- Added a separate tray action and URL-import dialog that resolves one video
+  first, shows its title/channel/thumbnail/duration for confirmation, and
+  then reports cancellable audio-download progress.
+- Added a UI-agnostic `Hookline.Audio` fetch/import pipeline using
+  YoutubeExplode 6.6.0. It prefers the highest-bitrate MP4 audio-only stream
+  saved as M4A, falls back to WebM audio-only, applies the existing duration
+  and decoded-size caps, and always removes its unique temporary directory.
+- URL imports reuse the startup-registered `LocalAudioFileImporter` and the
+  existing imported-audio trim path unchanged, including synthetic ID
+  allocation, full-waveform startup, preview/export, and catalog behavior.
+- Added the persisted one-time personal-use notice plus network-independent
+  tests for URL validation, preflight limits, metadata mapping, progress,
+  cancellation, failure cleanup, dialog state, and shared importer IDs.
+- No implementation deviations. Thumbnail retrieval remains best-effort and
+  extraction still depends on YouTube's upstream delivery behavior, with a
+  specific non-crashing error if it changes.

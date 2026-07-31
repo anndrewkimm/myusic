@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using Hookline.App.Catalog;
 using Hookline.Audio;
@@ -18,6 +19,8 @@ public partial class App : System.Windows.Application
     private ClipCatalogService? _catalogService;
     private ClipRetrimLauncher? _retrimLauncher;
     private LocalAudioFileImporter? _localAudioFileImporter;
+    private YoutubeVideoAudioSource? _youtubeVideoAudioSource;
+    private IUrlAudioImportService? _urlAudioImportService;
     private StemIsolationService? _stemIsolationService;
     private GlobalHotkey? _hotkey;
     private TrayIcon? _trayIcon;
@@ -25,6 +28,8 @@ public partial class App : System.Windows.Application
         new();
     private readonly ManagedWindowSlot<ClipCatalogWindow>
         _catalogWindowSlot = new();
+    private readonly ManagedWindowSlot<UrlImportWindow>
+        _urlImportWindowSlot = new();
     private readonly Dictionary<
         long,
         ManagedWindowSlot<TrimWindow>
@@ -37,11 +42,17 @@ public partial class App : System.Windows.Application
         base.OnStartup(args);
 
         _localAudioFileImporter = new LocalAudioFileImporter();
+        _youtubeVideoAudioSource = new YoutubeVideoAudioSource();
+        _urlAudioImportService = new UrlAudioImportService(
+            _youtubeVideoAudioSource,
+            _localAudioFileImporter
+        );
         _stemIsolationService =
             StemIsolationService.CreateDefault();
         _trayIcon = new TrayIcon(
             ShowTrimWindow,
             ImportAudioFile,
+            ShowUrlImportWindow,
             ShowCatalogWindow,
             ExitApplication
         );
@@ -231,29 +242,7 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            var session =
-                ImportedAudioTrimSessionFactory.Create(imported);
-            var trackInstanceId = session.Track.InstanceId;
-            var slot = new ManagedWindowSlot<TrimWindow>();
-            _importWindowSlots.Add(trackInstanceId, slot);
-            try
-            {
-                slot.TryShowNew(
-                    () => CreateTrimWindow(session),
-                    SubscribeWindowClosed,
-                    ShowAndActivateWindow,
-                    CloseWindow,
-                    _ =>
-                        _importWindowSlots.Remove(
-                            trackInstanceId
-                        )
-                );
-            }
-            catch
-            {
-                _importWindowSlots.Remove(trackInstanceId);
-                throw;
-            }
+            ShowImportedTrimWindow(imported);
         }
         catch (OperationCanceledException)
             when (_startupCancellation.IsCancellationRequested)
@@ -272,6 +261,142 @@ public partial class App : System.Windows.Application
         finally
         {
             _isImporting = false;
+        }
+    }
+
+    private void ShowUrlImportWindow()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(ShowUrlImportWindow);
+            return;
+        }
+
+        if (_isExiting)
+        {
+            return;
+        }
+
+        if (
+            _urlImportWindowSlot.TryActivateExisting(
+                IsWindowUsable,
+                RestoreAndActivateWindow,
+                window => window.CloseForShutdown()
+            )
+        )
+        {
+            return;
+        }
+
+        if (
+            _urlAudioImportService is null
+            || _outputSettings is null
+            || _exporter is null
+        )
+        {
+            _trayIcon?.ShowError(AppStrings.CatalogUnavailable);
+            return;
+        }
+
+        var showNotice =
+            _outputSettings.ShouldShowUrlImportNotice;
+        try
+        {
+            _urlImportWindowSlot.TryShowNew(
+                () =>
+                {
+                    var viewModel = new UrlImportViewModel(
+                        _urlAudioImportService,
+                        showNotice
+                    );
+                    var window = new UrlImportWindow(viewModel);
+                    window.ImportCompleted +=
+                        OnUrlImportCompleted;
+                    return window;
+                },
+                SubscribeWindowClosed,
+                ShowAndActivateWindow,
+                window => window.CloseForShutdown()
+            );
+        }
+        catch (Exception exception)
+        {
+            _trayIcon?.ShowError(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    AppStrings.ImportFailed,
+                    exception.Message
+                )
+            );
+            return;
+        }
+
+        if (showNotice)
+        {
+            try
+            {
+                _outputSettings.MarkUrlImportNoticeShown();
+            }
+            catch (Exception exception)
+                when (exception is IOException
+                    or UnauthorizedAccessException)
+            {
+                _trayIcon?.ShowError(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        AppStrings.UrlImportNoticeSaveFailed,
+                        exception.Message
+                    )
+                );
+            }
+        }
+    }
+
+    private void OnUrlImportCompleted(
+        object? sender,
+        UrlImportCompletedEventArgs args
+    )
+    {
+        try
+        {
+            ShowImportedTrimWindow(args.ImportedAudio);
+        }
+        catch (Exception exception)
+        {
+            _trayIcon?.ShowError(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    AppStrings.ImportFailed,
+                    exception.Message
+                )
+            );
+        }
+    }
+
+    private void ShowImportedTrimWindow(
+        ImportedAudioFile imported
+    )
+    {
+        ArgumentNullException.ThrowIfNull(imported);
+        var session = ImportedAudioTrimSessionFactory.Create(imported);
+        var trackInstanceId = session.Track.InstanceId;
+        var slot = new ManagedWindowSlot<TrimWindow>();
+        _importWindowSlots.Add(trackInstanceId, slot);
+        try
+        {
+            slot.TryShowNew(
+                () => CreateTrimWindow(session),
+                SubscribeWindowClosed,
+                ShowAndActivateWindow,
+                CloseWindow,
+                _ =>
+                    _importWindowSlots.Remove(trackInstanceId)
+            );
+        }
+        catch
+        {
+            _importWindowSlots.Remove(trackInstanceId);
+            throw;
         }
     }
 
@@ -434,6 +559,9 @@ public partial class App : System.Windows.Application
         _startupCancellation.Cancel();
         _trimWindowSlot.CloseCurrent(CloseWindow);
         _catalogWindowSlot.CloseCurrent(CloseWindow);
+        _urlImportWindowSlot.CloseCurrent(
+            window => window.CloseForShutdown()
+        );
         foreach (var slot in _importWindowSlots.Values.ToArray())
         {
             slot.CloseCurrent(CloseWindow);
@@ -473,6 +601,9 @@ public partial class App : System.Windows.Application
         _trayIcon = null;
         _stemIsolationService?.Dispose();
         _stemIsolationService = null;
+        _youtubeVideoAudioSource?.Dispose();
+        _youtubeVideoAudioSource = null;
+        _urlAudioImportService = null;
         _startupCancellation.Dispose();
         Shutdown();
     }

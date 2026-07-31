@@ -8,6 +8,7 @@ public sealed class OutputFolderSettings
     private readonly string _settingsPath;
     private string? _explicitOutputFolder;
     private bool _spotifyHintDismissed;
+    private bool _urlImportNoticeShown;
 
     public OutputFolderSettings()
         : this(
@@ -41,6 +42,8 @@ public sealed class OutputFolderSettings
         );
         _spotifyHintDismissed =
             document?.SpotifyLocalFilesHintDismissed ?? false;
+        _urlImportNoticeShown =
+            document?.UrlImportPersonalUseNoticeShown ?? false;
 
         string? spotifySource = null;
         if (_explicitOutputFolder is null)
@@ -74,6 +77,9 @@ public sealed class OutputFolderSettings
         private set;
     }
 
+    public bool ShouldShowUrlImportNotice =>
+        !_urlImportNoticeShown;
+
     public void SetOutputFolder(string outputFolder)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputFolder);
@@ -83,6 +89,8 @@ public sealed class OutputFolderSettings
             {
                 OutputFolder = fullPath,
                 SpotifyLocalFilesHintDismissed = true,
+                UrlImportPersonalUseNoticeShown =
+                    _urlImportNoticeShown,
             }
         );
         _explicitOutputFolder = fullPath;
@@ -98,10 +106,26 @@ public sealed class OutputFolderSettings
             {
                 OutputFolder = _explicitOutputFolder,
                 SpotifyLocalFilesHintDismissed = true,
+                UrlImportPersonalUseNoticeShown =
+                    _urlImportNoticeShown,
             }
         );
         _spotifyHintDismissed = true;
         ShouldShowSpotifyLocalFilesHint = false;
+    }
+
+    public void MarkUrlImportNoticeShown()
+    {
+        Save(
+            new SettingsDocument
+            {
+                OutputFolder = _explicitOutputFolder,
+                SpotifyLocalFilesHintDismissed =
+                    _spotifyHintDismissed,
+                UrlImportPersonalUseNoticeShown = true,
+            }
+        );
+        _urlImportNoticeShown = true;
     }
 
     private SettingsDocument? Load()
@@ -213,5 +237,7 @@ public sealed class OutputFolderSettings
         public string? OutputFolder { get; init; }
 
         public bool SpotifyLocalFilesHintDismissed { get; init; }
+
+        public bool UrlImportPersonalUseNoticeShown { get; init; }
     }
 }

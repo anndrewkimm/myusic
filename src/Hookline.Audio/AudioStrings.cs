@@ -47,6 +47,24 @@ internal static class AudioStrings
     public const string ImportDecodeFailed =
         "Windows could not decode audio from this file. It may be corrupt or use an unsupported audio codec.";
 
+    public const string UrlImportInvalidUrl =
+        "Enter a valid link to a single YouTube video.";
+
+    public const string UrlImportSingleVideoOnly =
+        "Hookline imports one video at a time. Paste a single video link, not a playlist or channel.";
+
+    public const string UrlImportVideoUnavailable =
+        "This video is unavailable, private, age-restricted, or blocked in your region.";
+
+    public const string UrlImportNoAudio =
+        "This video does not have a supported audio-only stream.";
+
+    public const string UrlImportNetworkFailed =
+        "Hookline could not reach YouTube. Check your connection and try again.";
+
+    public const string UrlImportFetchFailed =
+        "Hookline couldn't fetch this video. YouTube may have changed how its videos are delivered.";
+
     public const string UnsupportedEffectsFormat =
         "Clip effects currently require 16-bit PCM audio.";
 

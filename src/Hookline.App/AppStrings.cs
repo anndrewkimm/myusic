@@ -15,6 +15,7 @@ public static class AppStrings
     public const string TrayTooltip = "Hookline — Ctrl+Alt+H to capture";
     public const string TrayOpen = "Capture a moment    Ctrl+Alt+H";
     public const string TrayImport = "Import audio file...";
+    public const string TrayImportFromUrl = "Import from URL...";
     public const string TrayLibrary = "Open clip library";
     public const string TrayExit = "Exit Hookline";
     public const string TrayStatusTitle = "Hookline";
@@ -26,6 +27,34 @@ public static class AppStrings
         "Hookline is already importing an audio file.";
     public const string ImportFailed =
         "Audio import failed: {0}";
+    public const string UrlImportWindowTitle =
+        "Hookline — import from URL";
+    public const string UrlImportHeading = "Import from YouTube";
+    public const string UrlImportSubtitle =
+        "Paste one video link. Hookline will show what it found before downloading any audio.";
+    public const string UrlImportLabel = "VIDEO URL";
+    public const string UrlImportPlaceholder =
+        "https://www.youtube.com/watch?v=...";
+    public const string UrlImportFetch = "Fetch";
+    public const string UrlImportConfirm = "Download and trim";
+    public const string UrlImportCancel = "Cancel";
+    public const string UrlImportClose = "Close";
+    public const string UrlImportResolving =
+        "Checking the video...";
+    public const string UrlImportDownloading =
+        "Downloading audio... {0}%";
+    public const string UrlImportCanceled =
+        "Canceled. Paste a video link when you're ready.";
+    public const string UrlImportReady =
+        "Confirm this is the video you want to trim.";
+    public const string UrlImportInitial =
+        "Paste a single YouTube video link to get started.";
+    public const string UrlImportPersonalUseNotice =
+        "Use URL import only for personal-use content you have the right to use.";
+    public const string UrlImportDismissNotice = "Got it";
+    public const string UrlImportDuration = "Duration: {0}";
+    public const string UrlImportNoticeSaveFailed =
+        "Hookline couldn't remember that the URL import notice was shown: {0}";
     public const string TrackFallback = "Untitled track";
     public const string ArtistFallback = "Unknown artist";
     public const string EmptyTime = "—";
