@@ -47,7 +47,7 @@
             BorderBrush="{StaticResource WarningBrush}"
             BorderThickness="1"
             CornerRadius="7"
-            Visibility="{Binding IsNoticeVisible, Converter={StaticResource BooleanToVisibility}}">
+            Visibility="{Binding IsNoticeVisible, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -89,7 +89,7 @@
                     FontFamily="Segoe UI"
                     FontSize="14"
                     Foreground="{StaticResource PrimaryTextBrush}"
-                    IsReadOnly="{Binding IsBusy}"
+                    IsReadOnly="{Binding IsBusy, Mode=OneWay}"
                     Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" />
                 <Button
                     Grid.Column="1"
@@ -97,7 +97,7 @@
                     Click="OnFetchClick"
                     Content="{x:Static local:AppStrings.UrlImportFetch}"
                     IsDefault="True"
-                    IsEnabled="{Binding CanFetch}" />
+                    IsEnabled="{Binding CanFetch, Mode=OneWay}" />
             </Grid>
         </StackPanel>
 
@@ -107,7 +107,7 @@
             Padding="16"
             Background="{StaticResource PanelBackgroundBrush}"
             CornerRadius="9"
-            Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibility}}">
+            Visibility="{Binding HasPreview, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="150" />
@@ -120,7 +120,7 @@
                     CornerRadius="6"
                     ClipToBounds="True">
                     <Image
-                        Source="{Binding Thumbnail, Converter={StaticResource AlbumArtConverter}}"
+                        Source="{Binding Thumbnail, Mode=OneWay, Converter={StaticResource AlbumArtConverter}}"
                         Stretch="UniformToFill" />
                 </Border>
                 <StackPanel
@@ -130,17 +130,17 @@
                     <TextBlock
                         FontFamily="Segoe UI Semibold"
                         FontSize="18"
-                        Text="{Binding Title}"
+                        Text="{Binding Title, Mode=OneWay}"
                         TextWrapping="Wrap" />
                     <TextBlock
                         Margin="0,7,0,0"
                         Foreground="{StaticResource MutedTextBrush}"
-                        Text="{Binding Channel}"
+                        Text="{Binding Channel, Mode=OneWay}"
                         TextWrapping="Wrap" />
                     <TextBlock
                         Margin="0,7,0,0"
                         Foreground="{StaticResource MutedTextBrush}"
-                        Text="{Binding DurationText}" />
+                        Text="{Binding DurationText, Mode=OneWay}" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -148,14 +148,14 @@
         <StackPanel Grid.Row="4" Margin="0,18,0,0">
             <ProgressBar
                 Height="6"
-                IsIndeterminate="{Binding IsResolving}"
+                IsIndeterminate="{Binding IsResolving, Mode=OneWay}"
                 Maximum="100"
-                Value="{Binding ProgressPercent}"
-                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
+                Value="{Binding ProgressPercent, Mode=OneWay}"
+                Visibility="{Binding IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
             <TextBlock
                 Margin="0,9,0,0"
                 Foreground="{StaticResource MutedTextBrush}"
-                Text="{Binding StatusMessage}"
+                Text="{Binding StatusMessage, Mode=OneWay}"
                 TextWrapping="Wrap" />
         </StackPanel>
 
@@ -170,7 +170,7 @@
                 HorizontalAlignment="Left"
                 Click="OnCancelClick"
                 Content="{x:Static local:AppStrings.UrlImportCancel}"
-                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
+                Visibility="{Binding IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
             <Button
                 Grid.Column="1"
                 Margin="0,0,10,0"
@@ -182,7 +182,7 @@
                 BorderBrush="{StaticResource AccentBrush}"
                 Click="OnImportClick"
                 Content="{x:Static local:AppStrings.UrlImportConfirm}"
-                IsEnabled="{Binding CanImport}" />
+                IsEnabled="{Binding CanImport, Mode=OneWay}" />
         </Grid>
     </Grid>
 </Window>

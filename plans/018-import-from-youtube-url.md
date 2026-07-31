@@ -1,5 +1,5 @@
 ---
-status: DONE
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [008, 017]
 ---
@@ -232,3 +232,24 @@ clean, flipped to DONE.
   checkboxes were left unchecked by the implementer despite "what shipped"
   claiming completion; checked them off above after independently verifying
   each one against the diff.
+
+## Owner review feedback (2026-07-31)
+
+- Fix the URL-import dialog's runtime failure caused by WPF attempting a
+  two-way binding to its read-only progress property.
+- Make Ctrl+Alt+H expose the existing capture/local-file/URL-import actions
+  without requiring a tray-icon right click. The hotkey now opens the same
+  action menu at the cursor; the trim window remains unchanged.
+
+## Review fixes shipped
+
+- Corrected the runtime `ProgressPercent` failure by making every read-only
+  URL-dialog binding explicitly one-way.
+- Added a real STA/WPF regression test that constructs, shows, lays out, and
+  closes the dialog; both Debug and Release now pass all 172 tests.
+- Changed Ctrl+Alt+H to open the existing action menu at the cursor, exposing
+  capture, local-file import, URL import, and the library without requiring a
+  tray-icon right click.
+- Live-smoked the complete URL path against a public 3:33 YouTube video:
+  metadata resolution, M4A download, Media Foundation decode, metadata
+  handoff, waveform snapshot, and temporary-file cleanup all succeeded.

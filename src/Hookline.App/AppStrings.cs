@@ -12,8 +12,8 @@ public static class AppStrings
         "Audio capture is unavailable. Open Hookline again after Spotify is ready.";
     public const string HotkeyUnavailable =
         "Ctrl+Alt+H is already in use. Open Hookline from the tray icon.";
-    public const string TrayTooltip = "Hookline — Ctrl+Alt+H to capture";
-    public const string TrayOpen = "Capture a moment    Ctrl+Alt+H";
+    public const string TrayTooltip = "Hookline — Ctrl+Alt+H for actions";
+    public const string TrayOpen = "Capture a moment";
     public const string TrayImport = "Import audio file...";
     public const string TrayImportFromUrl = "Import from URL...";
     public const string TrayLibrary = "Open clip library";

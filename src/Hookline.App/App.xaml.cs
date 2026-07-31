@@ -124,7 +124,23 @@ public partial class App : System.Windows.Application
     }
 
     private void OnHotkeyPressed(object? sender, EventArgs args) =>
-        ShowTrimWindow();
+        ShowTrayActions();
+
+    private void ShowTrayActions()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(ShowTrayActions);
+            return;
+        }
+
+        if (_isExiting)
+        {
+            return;
+        }
+
+        _trayIcon?.ShowMenu();
+    }
 
     private void ShowTrimWindow()
     {

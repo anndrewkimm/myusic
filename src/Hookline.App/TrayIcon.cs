@@ -73,6 +73,12 @@ internal sealed class TrayIcon : IDisposable
     public void ShowError(string message) =>
         ShowBalloon(message, Forms.ToolTipIcon.Error);
 
+    public void ShowMenu()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _menu.Show(Forms.Cursor.Position);
+    }
+
     public void Dispose()
     {
         if (_disposed)
