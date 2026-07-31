@@ -25,8 +25,15 @@ public sealed class AudioSnapshotSlicerTests
             TimeSpan.FromMilliseconds(250),
             TimeSpan.FromMilliseconds(1_250)
         );
+        var plannedByteCount =
+            AudioSnapshotSlicer.GetSliceAudioByteCount(
+                source,
+                TimeSpan.FromMilliseconds(250),
+                TimeSpan.FromMilliseconds(1_250)
+            );
 
         Assert.Equal(100, slice.Audio.Length);
+        Assert.Equal(slice.Audio.Length, plannedByteCount);
         Assert.Equal(2, slice.IncludedRanges.Count);
         Assert.Equal(
             new AudioTimeRange(

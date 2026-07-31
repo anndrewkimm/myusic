@@ -8,18 +8,20 @@ namespace Hookline.App;
 public sealed class StemVolumeViewModel
     : INotifyPropertyChanged
 {
-    private readonly Action _changed;
+    private readonly Action<StemKind, double> _changed;
     private double _volumePercent = 100;
 
     public StemVolumeViewModel(
         StemKind kind,
-        Action changed
+        Action<StemKind, double> changed,
+        double initialVolumePercent = 100
     )
     {
         Kind = kind;
         _changed =
             changed
             ?? throw new ArgumentNullException(nameof(changed));
+        _volumePercent = Normalize(initialVolumePercent);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -43,11 +45,7 @@ public sealed class StemVolumeViewModel
         get => _volumePercent;
         set
         {
-            var normalized = Math.Clamp(
-                Math.Round(value),
-                StemRemixer.MinimumGain * 100,
-                StemRemixer.MaximumGain * 100
-            );
+            var normalized = Normalize(value);
             if (_volumePercent == normalized)
             {
                 return;
@@ -57,7 +55,7 @@ public sealed class StemVolumeViewModel
             OnPropertyChanged();
             OnPropertyChanged(nameof(VolumeText));
             OnPropertyChanged(nameof(BandVolumeText));
-            _changed();
+            _changed(Kind, normalized);
         }
     }
 
@@ -75,6 +73,13 @@ public sealed class StemVolumeViewModel
             <= 115 => AppStrings.StemNatural,
             _ => AppStrings.StemLoud,
         };
+
+    private static double Normalize(double value) =>
+        Math.Clamp(
+            Math.Round(value),
+            StemRemixer.MinimumGain * 100,
+            StemRemixer.MaximumGain * 100
+        );
 
     private void OnPropertyChanged(
         [CallerMemberName] string? propertyName = null

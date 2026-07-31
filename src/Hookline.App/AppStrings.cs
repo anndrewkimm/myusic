@@ -44,6 +44,11 @@ public static class AppStrings
     public const string Export = "Export MP3";
     public const string Exporting = "Exporting…";
     public const string Effects = "EFFECTS";
+    public const string SegmentEditingHint =
+        "Double-click to add or remove a split. Click a segment to edit its effects.";
+    public const string ActiveSegment = "SEGMENT {0} OF {1}";
+    public const string AdjustedExportDuration =
+        "Effects make the exported clip {0}";
     public const string EditStyle = "Edit style";
     public const string EditPresetNone = "None";
     public const string EditPresetCustom = "Custom";

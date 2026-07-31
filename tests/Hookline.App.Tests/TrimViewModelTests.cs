@@ -598,6 +598,192 @@ public sealed class TrimViewModelTests
         );
     }
 
+    [Fact]
+    public void SplitsInheritClampAndMergeWithLeftSettings()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(2)
+        );
+        fixture.ViewModel.ApplyEqualizerPreset(
+            EqualizerPreset.BassBoost
+        );
+
+        Assert.True(
+            fixture.ViewModel.AddSplit(TimeSpan.FromSeconds(1))
+        );
+        Assert.Equal(2, fixture.ViewModel.SegmentCount);
+        Assert.Equal(1, fixture.ViewModel.ActiveSegmentIndex);
+        Assert.Equal(
+            EqualizerPreset.BassBoost,
+            fixture.ViewModel.EqualizerPreset
+        );
+
+        fixture.ViewModel.SpeedMultiplier = 2;
+        fixture.ViewModel.SetActiveSegment(0);
+        Assert.Equal(1, fixture.ViewModel.SpeedMultiplier);
+        Assert.Equal(
+            EqualizerPreset.BassBoost,
+            fixture.ViewModel.EqualizerPreset
+        );
+
+        var clamped = fixture.ViewModel.MoveSplit(
+            0,
+            TimeSpan.FromMilliseconds(50)
+        );
+        Assert.Equal(TimeSpan.FromMilliseconds(250), clamped);
+
+        fixture.ViewModel.SetActiveSegment(1);
+        Assert.Equal(2, fixture.ViewModel.SpeedMultiplier);
+        Assert.True(fixture.ViewModel.RemoveSplit(0));
+        Assert.Equal(1, fixture.ViewModel.SegmentCount);
+        Assert.Empty(fixture.ViewModel.SplitPoints);
+        Assert.Equal(1, fixture.ViewModel.SpeedMultiplier);
+        Assert.Equal(
+            EqualizerPreset.BassBoost,
+            fixture.ViewModel.EqualizerPreset
+        );
+    }
+
+    [Fact]
+    public void SplitCreationRejectsDegenerateSegments()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(600)
+        );
+
+        Assert.False(
+            fixture.ViewModel.AddSplit(
+                TimeSpan.FromMilliseconds(100)
+            )
+        );
+        Assert.True(
+            fixture.ViewModel.AddSplit(
+                TimeSpan.FromMilliseconds(300)
+            )
+        );
+        Assert.False(
+            fixture.ViewModel.AddSplit(
+                TimeSpan.FromMilliseconds(450)
+            )
+        );
+        Assert.Single(fixture.ViewModel.SplitPoints);
+    }
+
+    [Fact]
+    public async Task SegmentedPreviewAndExportUseTheSameStitchedBytes()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(2)
+        );
+        fixture.ViewModel.AddSplit(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.SpeedMultiplier = 2;
+
+        Assert.True(fixture.ViewModel.HasAdjustedExportDuration);
+        Assert.Equal(
+            TimeSpan.FromSeconds(1.5),
+            fixture.ViewModel.ExportDuration
+        );
+
+        fixture.ViewModel.TogglePreview();
+        await fixture.ViewModel.ExportAsync();
+
+        Assert.NotNull(fixture.Preview.LastSnapshot);
+        Assert.NotNull(fixture.Exporter.LastSelection);
+        Assert.Equal(
+            TimeSpan.FromSeconds(1.5),
+            fixture.Exporter.LastSelection!.Duration
+        );
+        Assert.True(
+            fixture.Preview.LastSnapshot!.Audio.Span.SequenceEqual(
+                fixture.Exporter.LastSelection.Audio.Span
+            )
+        );
+    }
+
+    [Fact]
+    public async Task SegmentedPreviewDebouncesAndResumesProportionally()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(2)
+        );
+        fixture.ViewModel.AddSplit(TimeSpan.FromSeconds(1));
+        fixture.ViewModel.TogglePreview();
+        fixture.Preview.CurrentAudioPosition =
+            TimeSpan.FromSeconds(1);
+
+        fixture.ViewModel.SpeedMultiplier = 1.5;
+        fixture.ViewModel.SpeedMultiplier = 2;
+
+        Assert.False(fixture.Preview.IsPlaying);
+        Assert.Equal(1, fixture.Preview.PlayCallCount);
+        await WaitUntilAsync(
+            () => fixture.Preview.PlayCallCount == 2
+        );
+
+        Assert.True(fixture.Preview.IsPlaying);
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(750),
+            fixture.Preview.LastResumeAt
+        );
+        Assert.Equal(
+            TimeSpan.FromSeconds(1.5),
+            fixture.Preview.LastSnapshot?.Duration
+        );
+    }
+
+    [Fact]
+    public async Task OneSharedStemSeparationSupportsIndependentSegments()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(2)
+        );
+        fixture.ViewModel.AddSplit(TimeSpan.FromSeconds(1));
+
+        await fixture.ViewModel.IsolateStemsAsync(
+            downloadModel: false
+        );
+        fixture.ViewModel.StemVolumes[0].VolumePercent = 0;
+        fixture.ViewModel.SetActiveSegment(0);
+
+        Assert.All(
+            fixture.ViewModel.StemVolumes,
+            stem => Assert.Equal(100, stem.VolumePercent)
+        );
+
+        fixture.ViewModel.TogglePreview();
+        await fixture.ViewModel.ExportAsync();
+
+        Assert.Equal(1, fixture.StemService.SeparateCallCount);
+        Assert.True(
+            fixture.Preview.LastSnapshot!.Audio.Span.SequenceEqual(
+                fixture.Exporter.LastSelection!.Audio.Span
+            )
+        );
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var timeout = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (!condition())
+        {
+            Assert.True(
+                DateTime.UtcNow < timeout,
+                "The debounced preview did not settle in time."
+            );
+            await Task.Delay(25);
+        }
+    }
+
     private sealed class ViewModelFixture : IDisposable
     {
         private readonly string _temporaryDirectory;

@@ -26,6 +26,11 @@ public partial class TrimWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         Waveform.Snapshot = viewModel.Snapshot;
+        Waveform.SplitPoints = viewModel.SplitPoints;
+        Waveform.ActiveSegmentIndex =
+            viewModel.ActiveSegmentIndex;
+        Waveform.MinimumSegmentDuration =
+            TrimViewModel.MinimumSegmentDuration;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         LoadAlbumArt();
     }
@@ -54,6 +59,13 @@ public partial class TrimWindow : Window
             case nameof(TrimViewModel.Playhead):
                 Waveform.Playhead = _viewModel.Playhead;
                 break;
+            case nameof(TrimViewModel.SplitPoints):
+                Waveform.SplitPoints = _viewModel.SplitPoints;
+                break;
+            case nameof(TrimViewModel.ActiveSegmentIndex):
+                Waveform.ActiveSegmentIndex =
+                    _viewModel.ActiveSegmentIndex;
+                break;
         }
     }
 
@@ -76,6 +88,40 @@ public partial class TrimWindow : Window
         object sender,
         SelectionEdgeChangedEventArgs args
     ) => _viewModel.SetActiveEdge(args.Edge);
+
+    private void OnWaveformSplitRequested(
+        object sender,
+        WaveformSplitRequestedEventArgs args
+    )
+    {
+        if (args.SplitIndex < 0)
+        {
+            _viewModel.AddSplit(args.Position);
+        }
+        else
+        {
+            _viewModel.RemoveSplit(args.SplitIndex);
+        }
+    }
+
+    private void OnWaveformSplitChanged(
+        object sender,
+        WaveformSplitChangedEventArgs args
+    ) =>
+        _viewModel.MoveSplit(
+            args.SplitIndex,
+            args.Position
+        );
+
+    private void OnWaveformSegmentActivated(
+        object sender,
+        WaveformSegmentActivatedEventArgs args
+    ) => _viewModel.SetActiveSegment(args.SegmentIndex);
+
+    private void OnWaveformNewSelectionStarted(
+        object? sender,
+        EventArgs args
+    ) => _viewModel.ResetSplits();
 
     private void OnStartControlFocused(
         object sender,

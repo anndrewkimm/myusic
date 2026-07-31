@@ -18,12 +18,19 @@ public sealed class WaveformControl : FrameworkElement
     private const double HorizontalPadding = 14;
     private const double VerticalPadding = 20;
     private const double HandleHitWidth = 12;
+    private const double SplitHitWidth = 9;
     private static readonly Brush BackgroundBrush =
         Freeze(new SolidColorBrush(Color.FromRgb(19, 23, 31)));
     private static readonly Brush SelectionBrush =
         Freeze(
             new SolidColorBrush(
                 Color.FromArgb(42, 91, 231, 177)
+            )
+        );
+    private static readonly Brush ActiveSegmentBrush =
+        Freeze(
+            new SolidColorBrush(
+                Color.FromArgb(34, 91, 231, 177)
             )
         );
     private static readonly Brush ExcludedBrush =
@@ -46,6 +53,15 @@ public sealed class WaveformControl : FrameworkElement
             new Pen(
                 new SolidColorBrush(
                     Color.FromRgb(91, 231, 177)
+                ),
+                2
+            )
+        );
+    private static readonly Pen SplitPen =
+        Freeze(
+            new Pen(
+                new SolidColorBrush(
+                    Color.FromRgb(255, 191, 92)
                 ),
                 2
             )
@@ -74,6 +90,10 @@ public sealed class WaveformControl : FrameworkElement
     private TimeSpan? _selectionEnd;
     private TimeSpan? _playhead;
     private TimeSpan _dragAnchor;
+    private Point _mouseDownPoint;
+    private readonly List<TimeSpan> _splitPoints = [];
+    private int _activeSegmentIndex;
+    private int _dragSplitIndex = -1;
     private DragMode _dragMode;
 
     public WaveformControl()
@@ -88,6 +108,17 @@ public sealed class WaveformControl : FrameworkElement
 
     public event EventHandler<SelectionEdgeChangedEventArgs>?
         ActiveEdgeChanged;
+
+    public event EventHandler<WaveformSplitRequestedEventArgs>?
+        SplitRequested;
+
+    public event EventHandler<WaveformSplitChangedEventArgs>?
+        SplitChanged;
+
+    public event EventHandler<WaveformSegmentActivatedEventArgs>?
+        SegmentActivated;
+
+    public event EventHandler? NewSelectionStarted;
 
     public AudioBufferSnapshot? Snapshot
     {
@@ -129,6 +160,38 @@ public sealed class WaveformControl : FrameworkElement
         }
     }
 
+    public IReadOnlyList<TimeSpan> SplitPoints
+    {
+        get => _splitPoints;
+        set
+        {
+            _splitPoints.Clear();
+            if (value is not null)
+            {
+                _splitPoints.AddRange(value);
+            }
+
+            InvalidateVisual();
+        }
+    }
+
+    public int ActiveSegmentIndex
+    {
+        get => _activeSegmentIndex;
+        set
+        {
+            _activeSegmentIndex = Math.Clamp(
+                value,
+                0,
+                _splitPoints.Count
+            );
+            InvalidateVisual();
+        }
+    }
+
+    public TimeSpan MinimumSegmentDuration { get; set; } =
+        TimeSpan.FromMilliseconds(250);
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -166,6 +229,12 @@ public sealed class WaveformControl : FrameworkElement
             start,
             end
         );
+        DrawActiveSegment(
+            drawingContext,
+            content,
+            start,
+            end
+        );
         DrawExcludedRanges(
             drawingContext,
             content,
@@ -174,6 +243,12 @@ public sealed class WaveformControl : FrameworkElement
         );
         DrawWaveform(drawingContext, content, start, end);
         DrawSelectionEdges(
+            drawingContext,
+            content,
+            start,
+            end
+        );
+        DrawSplitPoints(
             drawingContext,
             content,
             start,
@@ -196,9 +271,15 @@ public sealed class WaveformControl : FrameworkElement
         }
 
         Focus();
-        CaptureMouse();
         var point = args.GetPosition(this);
         var position = PositionFromX(point.X, start, end);
+
+        if (args.ClickCount >= 2)
+        {
+            HandleDoubleClick(point, position, start, end);
+            args.Handled = true;
+            return;
+        }
 
         if (
             SelectionStart is { } selectionStart
@@ -207,6 +288,7 @@ public sealed class WaveformControl : FrameworkElement
             ) <= HandleHitWidth
         )
         {
+            CaptureMouse();
             _dragMode = DragMode.Start;
             RaiseActiveEdge(SelectionEdge.Start);
             return;
@@ -219,15 +301,37 @@ public sealed class WaveformControl : FrameworkElement
             ) <= HandleHitWidth
         )
         {
+            CaptureMouse();
             _dragMode = DragMode.End;
             RaiseActiveEdge(SelectionEdge.End);
             return;
         }
 
-        _dragMode = DragMode.New;
+        var splitIndex = FindSplitHit(point.X, start, end);
+        if (splitIndex >= 0)
+        {
+            CaptureMouse();
+            _dragMode = DragMode.Split;
+            _dragSplitIndex = splitIndex;
+            RaiseSegmentActivated(splitIndex);
+            return;
+        }
+
+        CaptureMouse();
         _dragAnchor = position;
-        SelectionStart = position;
-        SelectionEnd = position;
+        _mouseDownPoint = point;
+        if (
+            SelectionStart is { } existingStart
+            && SelectionEnd is { } existingEnd
+            && position >= existingStart
+            && position <= existingEnd
+        )
+        {
+            _dragMode = DragMode.PendingNew;
+            return;
+        }
+
+        BeginNewSelection(position);
     }
 
     protected override void OnMouseMove(MouseEventArgs args)
@@ -249,6 +353,22 @@ public sealed class WaveformControl : FrameworkElement
         );
         switch (_dragMode)
         {
+            case DragMode.PendingNew:
+                var point = args.GetPosition(this);
+                if (
+                    Math.Abs(point.X - _mouseDownPoint.X)
+                        < SystemParameters.MinimumHorizontalDragDistance
+                    && Math.Abs(point.Y - _mouseDownPoint.Y)
+                        < SystemParameters.MinimumVerticalDragDistance
+                )
+                {
+                    return;
+                }
+
+                BeginNewSelection(_dragAnchor);
+                SelectionStart = Min(_dragAnchor, position);
+                SelectionEnd = Max(_dragAnchor, position);
+                break;
             case DragMode.New:
                 SelectionStart = Min(_dragAnchor, position);
                 SelectionEnd = Max(_dragAnchor, position);
@@ -264,6 +384,9 @@ public sealed class WaveformControl : FrameworkElement
             case DragMode.End when SelectionStart is { } selectionStart:
                 SelectionEnd = Max(position, selectionStart);
                 break;
+            case DragMode.Split:
+                MoveSplit(position);
+                return;
         }
 
         RaiseSelectionChanged();
@@ -279,8 +402,28 @@ public sealed class WaveformControl : FrameworkElement
             return;
         }
 
+        var completedMode = _dragMode;
+        var position = TryGetTimeline(out var timelineStart, out var timelineEnd)
+            ? PositionFromX(
+                args.GetPosition(this).X,
+                timelineStart,
+                timelineEnd
+            )
+            : _dragAnchor;
         ReleaseMouseCapture();
         _dragMode = DragMode.None;
+        _dragSplitIndex = -1;
+        if (completedMode == DragMode.PendingNew)
+        {
+            RaiseSegmentActivated(FindSegmentIndex(position));
+            return;
+        }
+
+        if (completedMode == DragMode.Split)
+        {
+            return;
+        }
+
         if (
             SelectionStart is not { } start
             || SelectionEnd is not { } end
@@ -300,6 +443,185 @@ public sealed class WaveformControl : FrameworkElement
     {
         base.OnLostMouseCapture(args);
         _dragMode = DragMode.None;
+        _dragSplitIndex = -1;
+    }
+
+    private void HandleDoubleClick(
+        Point point,
+        TimeSpan position,
+        TimeSpan timelineStart,
+        TimeSpan timelineEnd
+    )
+    {
+        if (
+            SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+            || position <= selectionStart
+            || position >= selectionEnd
+        )
+        {
+            return;
+        }
+
+        if (
+            Math.Abs(
+                XFromPosition(
+                    selectionStart,
+                    timelineStart,
+                    timelineEnd
+                ) - point.X
+            ) <= HandleHitWidth
+            || Math.Abs(
+                XFromPosition(
+                    selectionEnd,
+                    timelineStart,
+                    timelineEnd
+                ) - point.X
+            ) <= HandleHitWidth
+        )
+        {
+            return;
+        }
+
+        var splitIndex = FindSplitHit(
+            point.X,
+            timelineStart,
+            timelineEnd
+        );
+        if (splitIndex >= 0)
+        {
+            SplitRequested?.Invoke(
+                this,
+                new WaveformSplitRequestedEventArgs(
+                    splitIndex,
+                    _splitPoints[splitIndex]
+                )
+            );
+            return;
+        }
+
+        if (!CanAddSplit(position))
+        {
+            return;
+        }
+
+        SplitRequested?.Invoke(
+            this,
+            new WaveformSplitRequestedEventArgs(-1, position)
+        );
+    }
+
+    private void BeginNewSelection(TimeSpan position)
+    {
+        NewSelectionStarted?.Invoke(this, EventArgs.Empty);
+        _splitPoints.Clear();
+        _activeSegmentIndex = 0;
+        _dragMode = DragMode.New;
+        SelectionStart = position;
+        SelectionEnd = position;
+        InvalidateVisual();
+    }
+
+    private void MoveSplit(TimeSpan position)
+    {
+        if (
+            _dragSplitIndex < 0
+            || _dragSplitIndex >= _splitPoints.Count
+            || SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return;
+        }
+
+        var minimum =
+            (_dragSplitIndex == 0
+                ? selectionStart
+                : _splitPoints[_dragSplitIndex - 1])
+            + MinimumSegmentDuration;
+        var maximum =
+            (_dragSplitIndex == _splitPoints.Count - 1
+                ? selectionEnd
+                : _splitPoints[_dragSplitIndex + 1])
+            - MinimumSegmentDuration;
+        var clamped = position < minimum
+            ? minimum
+            : position > maximum
+                ? maximum
+                : position;
+        if (_splitPoints[_dragSplitIndex] == clamped)
+        {
+            return;
+        }
+
+        _splitPoints[_dragSplitIndex] = clamped;
+        InvalidateVisual();
+        SplitChanged?.Invoke(
+            this,
+            new WaveformSplitChangedEventArgs(
+                _dragSplitIndex,
+                clamped
+            )
+        );
+    }
+
+    private bool CanAddSplit(TimeSpan position)
+    {
+        if (
+            SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return false;
+        }
+
+        var segmentIndex = FindSegmentIndex(position);
+        var segmentStart = segmentIndex == 0
+            ? selectionStart
+            : _splitPoints[segmentIndex - 1];
+        var segmentEnd = segmentIndex == _splitPoints.Count
+            ? selectionEnd
+            : _splitPoints[segmentIndex];
+        return position - segmentStart >= MinimumSegmentDuration
+            && segmentEnd - position >= MinimumSegmentDuration;
+    }
+
+    private int FindSegmentIndex(TimeSpan position)
+    {
+        for (var index = 0; index < _splitPoints.Count; index++)
+        {
+            if (position < _splitPoints[index])
+            {
+                return index;
+            }
+        }
+
+        return _splitPoints.Count;
+    }
+
+    private int FindSplitHit(
+        double x,
+        TimeSpan timelineStart,
+        TimeSpan timelineEnd
+    )
+    {
+        for (var index = 0; index < _splitPoints.Count; index++)
+        {
+            if (
+                Math.Abs(
+                    XFromPosition(
+                        _splitPoints[index],
+                        timelineStart,
+                        timelineEnd
+                    ) - x
+                ) <= SplitHitWidth
+            )
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private void DrawSelectionBackground(
@@ -329,6 +651,127 @@ public sealed class WaveformControl : FrameworkElement
                 content.Height
             )
         );
+    }
+
+    private void DrawActiveSegment(
+        DrawingContext drawingContext,
+        Rect content,
+        TimeSpan timelineStart,
+        TimeSpan timelineEnd
+    )
+    {
+        if (
+            _splitPoints.Count == 0
+            || SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return;
+        }
+
+        var segmentIndex = Math.Clamp(
+            ActiveSegmentIndex,
+            0,
+            _splitPoints.Count
+        );
+        var segmentStart = segmentIndex == 0
+            ? selectionStart
+            : _splitPoints[segmentIndex - 1];
+        var segmentEnd = segmentIndex == _splitPoints.Count
+            ? selectionEnd
+            : _splitPoints[segmentIndex];
+        var left = XFromPosition(
+            segmentStart,
+            timelineStart,
+            timelineEnd
+        );
+        var right = XFromPosition(
+            segmentEnd,
+            timelineStart,
+            timelineEnd
+        );
+        drawingContext.DrawRectangle(
+            ActiveSegmentBrush,
+            null,
+            new Rect(
+                left,
+                content.Top,
+                Math.Max(0, right - left),
+                content.Height
+            )
+        );
+    }
+
+    private void DrawSplitPoints(
+        DrawingContext drawingContext,
+        Rect content,
+        TimeSpan timelineStart,
+        TimeSpan timelineEnd
+    )
+    {
+        for (var index = 0; index < _splitPoints.Count; index++)
+        {
+            var x = XFromPosition(
+                _splitPoints[index],
+                timelineStart,
+                timelineEnd
+            );
+            drawingContext.DrawLine(
+                SplitPen,
+                new Point(x, content.Top),
+                new Point(x, content.Bottom)
+            );
+            drawingContext.DrawEllipse(
+                SplitPen.Brush,
+                null,
+                new Point(x, content.Top + 12),
+                5,
+                5
+            );
+        }
+
+        if (
+            _splitPoints.Count == 0
+            || SelectionStart is not { } labelStart
+            || SelectionEnd is not { } labelEnd
+        )
+        {
+            return;
+        }
+
+        var boundaries = new List<TimeSpan>
+        {
+            labelStart,
+        };
+        boundaries.AddRange(_splitPoints);
+        boundaries.Add(labelEnd);
+        for (var index = 0; index < boundaries.Count - 1; index++)
+        {
+            var left = XFromPosition(
+                boundaries[index],
+                timelineStart,
+                timelineEnd
+            );
+            var right = XFromPosition(
+                boundaries[index + 1],
+                timelineStart,
+                timelineEnd
+            );
+            var text = CreateText(
+                (index + 1).ToString(CultureInfo.CurrentCulture),
+                10,
+                index == ActiveSegmentIndex
+                    ? Color.FromRgb(91, 231, 177)
+                    : Color.FromRgb(201, 209, 220)
+            );
+            drawingContext.DrawText(
+                text,
+                new Point(
+                    left + Math.Max(3, (right - left - text.Width) / 2),
+                    content.Bottom - text.Height - 3
+                )
+            );
+        }
     }
 
     private void DrawExcludedRanges(
@@ -701,6 +1144,22 @@ public sealed class WaveformControl : FrameworkElement
             new SelectionEdgeChangedEventArgs(edge)
         );
 
+    private void RaiseSegmentActivated(int segmentIndex)
+    {
+        _activeSegmentIndex = Math.Clamp(
+            segmentIndex,
+            0,
+            _splitPoints.Count
+        );
+        InvalidateVisual();
+        SegmentActivated?.Invoke(
+            this,
+            new WaveformSegmentActivatedEventArgs(
+                _activeSegmentIndex
+            )
+        );
+    }
+
     private static TimeSpan Min(TimeSpan left, TimeSpan right) =>
         left <= right ? left : right;
 
@@ -717,8 +1176,10 @@ public sealed class WaveformControl : FrameworkElement
     private enum DragMode
     {
         None,
+        PendingNew,
         New,
         Start,
         End,
+        Split,
     }
 }

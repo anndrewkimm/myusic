@@ -2,25 +2,51 @@ namespace Hookline.Audio;
 
 public static class AudioSnapshotSlicer
 {
+    public static int GetSliceAudioByteCount(
+        AudioBufferSnapshot source,
+        TimeSpan start,
+        TimeSpan end
+    )
+    {
+        ValidateRange(source, start, end);
+        var byteCount = 0;
+        foreach (var range in source.IncludedRanges)
+        {
+            var rangeByteCount = source.Format.GetAlignedByteCount(
+                range.Duration
+            );
+            var overlapStart = Max(start, range.Start);
+            var overlapEnd = Min(end, range.End);
+            if (overlapEnd <= overlapStart)
+            {
+                continue;
+            }
+
+            var rangeStartOffset = source.Format.GetAlignedByteCount(
+                overlapStart - range.Start
+            );
+            var rangeEndOffset = Math.Min(
+                source.Format.GetAlignedByteCount(
+                    overlapEnd - range.Start
+                ),
+                rangeByteCount
+            );
+            byteCount = checked(
+                byteCount
+                    + Math.Max(0, rangeEndOffset - rangeStartOffset)
+            );
+        }
+
+        return byteCount;
+    }
+
     public static AudioBufferSnapshot Slice(
         AudioBufferSnapshot source,
         TimeSpan start,
         TimeSpan end
     )
     {
-        ArgumentNullException.ThrowIfNull(source);
-        if (start < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(start));
-        }
-
-        if (end <= start)
-        {
-            throw new ArgumentException(
-                "The slice end must follow its start.",
-                nameof(end)
-            );
-        }
+        ValidateRange(source, start, end);
 
         using var output = new MemoryStream();
         var included = new List<AudioTimeRange>();
@@ -150,6 +176,27 @@ public static class AudioSnapshotSlicer
         }
 
         return excluded;
+    }
+
+    private static void ValidateRange(
+        AudioBufferSnapshot source,
+        TimeSpan start,
+        TimeSpan end
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (start < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+
+        if (end <= start)
+        {
+            throw new ArgumentException(
+                "The slice end must follow its start.",
+                nameof(end)
+            );
+        }
     }
 
     private static TimeSpan Max(TimeSpan left, TimeSpan right) =>

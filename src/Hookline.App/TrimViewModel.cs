@@ -10,6 +10,10 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 {
     private static readonly TimeSpan MinimumSelection =
         TimeSpan.FromMilliseconds(1);
+    public static readonly TimeSpan MinimumSegmentDuration =
+        TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan SegmentPreviewDebounce =
+        TimeSpan.FromMilliseconds(300);
 
     private readonly IClipExporter _exporter;
     private readonly IAudioPreviewPlayer _previewPlayer;
@@ -18,20 +22,24 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     private readonly CancellationTokenSource _lifetimeCancellation =
         new();
     private CancellationTokenSource? _stemCancellation;
+    private CancellationTokenSource? _previewRenderCancellation;
 
     private TimeSpan? _selectionStart;
     private TimeSpan? _selectionEnd;
+    private AudioBufferSnapshot? _rawSelectionSnapshot;
     private TimeSpan? _playhead;
     private TimeSpan _activePreviewDuration;
     private SelectionEdge _activeEdge = SelectionEdge.End;
     private string _statusMessage = string.Empty;
-    private EditEffectSelection _editEffectSelection =
-        EditEffectSelection.None;
-    private GraphicEqualizerSelection _equalizerSelection =
-        GraphicEqualizerSelection.Flat;
+    private readonly List<TimeSpan> _splitPoints = [];
+    private readonly List<ClipSegmentEffectState> _segmentEffects =
+        [new ClipSegmentEffectState()];
+    private int _activeSegmentIndex;
+    private bool _previewRestartPending;
+    private TimeSpan _pendingPreviewPosition;
+    private TimeSpan _pendingPreviewDuration;
     private readonly IReadOnlyList<EqualizerBandViewModel>
         _equalizerBands;
-    private int _loopCount = 1;
     private bool _isEqualizerExpanded;
     private bool _isExporting;
     private bool _isStemSeparating;
@@ -93,6 +101,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    private ClipSegmentEffectState ActiveSegment =>
+        _segmentEffects[_activeSegmentIndex];
+
     public TrimSession Session { get; }
 
     public AudioBufferSnapshot Snapshot => Session.Snapshot;
@@ -124,6 +135,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             }
 
             _selectionStart = value;
+            _rawSelectionSnapshot = null;
             OnPropertyChanged();
         }
     }
@@ -139,6 +151,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             }
 
             _selectionEnd = value;
+            _rawSelectionSnapshot = null;
             OnPropertyChanged();
         }
     }
@@ -168,6 +181,33 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         && SelectionEnd is { } end
             ? FormatDuration(end - start)
             : AppStrings.EmptyTime;
+
+    public IReadOnlyList<TimeSpan> SplitPoints => _splitPoints;
+
+    public int ActiveSegmentIndex => _activeSegmentIndex;
+
+    public int SegmentCount => _segmentEffects.Count;
+
+    public string ActiveSegmentText =>
+        string.Format(
+            CultureInfo.CurrentCulture,
+            AppStrings.ActiveSegment,
+            ActiveSegmentIndex + 1,
+            SegmentCount
+        );
+
+    public TimeSpan ExportDuration => CalculateExportDuration();
+
+    public bool HasAdjustedExportDuration =>
+        TryCreateRawSelectionSnapshot() is { } raw
+        && ExportDuration != raw.Duration;
+
+    public string ExportDurationText =>
+        string.Format(
+            CultureInfo.CurrentCulture,
+            AppStrings.AdjustedExportDuration,
+            FormatDuration(ExportDuration)
+        );
 
     public bool HasSelection =>
         SelectionStart.HasValue && SelectionEnd.HasValue;
@@ -301,7 +341,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     public double SpeedMultiplier
     {
-        get => _editEffectSelection.SpeedMultiplier;
+        get => ActiveSegment.EditEffectSelection.SpeedMultiplier;
         set
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -311,13 +351,13 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 ClipEffectSettings.MaximumSpeedMultiplier
             );
             var selection =
-                _editEffectSelection.AdjustSpeed(normalized);
-            if (selection.Equals(_editEffectSelection))
+                ActiveSegment.EditEffectSelection.AdjustSpeed(normalized);
+            if (selection.Equals(ActiveSegment.EditEffectSelection))
             {
                 return;
             }
 
-            _editEffectSelection = selection;
+            ActiveSegment.EditEffectSelection = selection;
             EffectsChanged(
                 nameof(SpeedMultiplier),
                 nameof(SpeedMultiplierText),
@@ -330,7 +370,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     public double ReverbAmountPercent
     {
         get => Math.Round(
-            _editEffectSelection.ReverbWetMix * 100
+            ActiveSegment.EditEffectSelection.ReverbWetMix * 100
         );
         set
         {
@@ -340,15 +380,15 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 ClipEffectSettings.MinimumReverbWetMix * 100,
                 ClipEffectSettings.MaximumReverbWetMix * 100
             );
-            var selection = _editEffectSelection.AdjustReverb(
+            var selection = ActiveSegment.EditEffectSelection.AdjustReverb(
                 normalized / 100
             );
-            if (selection.Equals(_editEffectSelection))
+            if (selection.Equals(ActiveSegment.EditEffectSelection))
             {
                 return;
             }
 
-            _editEffectSelection = selection;
+            ActiveSegment.EditEffectSelection = selection;
             EffectsChanged(
                 nameof(ReverbAmountPercent),
                 nameof(ReverbAmountText),
@@ -360,7 +400,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     public double RotationRateHertz
     {
-        get => _editEffectSelection.RotationRateHertz;
+        get => ActiveSegment.EditEffectSelection.RotationRateHertz;
         set
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -376,13 +416,13 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                             .MaximumRotationRateHertz
                     );
             var selection =
-                _editEffectSelection.AdjustRotation(normalized);
-            if (selection.Equals(_editEffectSelection))
+                ActiveSegment.EditEffectSelection.AdjustRotation(normalized);
+            if (selection.Equals(ActiveSegment.EditEffectSelection))
             {
                 return;
             }
 
-            _editEffectSelection = selection;
+            ActiveSegment.EditEffectSelection = selection;
             EffectsChanged(
                 nameof(RotationRateHertz),
                 nameof(RotationRateText),
@@ -393,10 +433,10 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public EditEffectPreset EditEffectPreset =>
-        _editEffectSelection.Preset;
+        ActiveSegment.EditEffectSelection.Preset;
 
     public string EditEffectPresetText =>
-        _editEffectSelection.Preset switch
+        ActiveSegment.EditEffectSelection.Preset switch
         {
             EditEffectPreset.None => AppStrings.EditPresetNone,
             EditEffectPreset.SlowedReverb =>
@@ -413,10 +453,10 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         _equalizerBands;
 
     public EqualizerPreset EqualizerPreset =>
-        _equalizerSelection.Preset;
+        ActiveSegment.EqualizerSelection.Preset;
 
     public string EqualizerPresetText =>
-        _equalizerSelection.Preset switch
+        ActiveSegment.EqualizerSelection.Preset switch
         {
             EqualizerPreset.Flat => AppStrings.EqualizerFlat,
             EqualizerPreset.BassBoost => AppStrings.BassBoost,
@@ -454,7 +494,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     public int LoopCount
     {
-        get => _loopCount;
+        get => ActiveSegment.LoopCount;
         set
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -463,12 +503,12 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 ClipEffectSettings.MinimumLoopCount,
                 ClipEffectSettings.MaximumLoopCount
             );
-            if (_loopCount == normalized)
+            if (ActiveSegment.LoopCount == normalized)
             {
                 return;
             }
 
-            _loopCount = normalized;
+            ActiveSegment.LoopCount = normalized;
             EffectsChanged(
                 nameof(LoopCount),
                 nameof(LoopCountText)
@@ -510,12 +550,12 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var selection = EditEffectSelection.FromPreset(preset);
-        if (selection.Equals(_editEffectSelection))
+        if (selection.Equals(ActiveSegment.EditEffectSelection))
         {
             return;
         }
 
-        _editEffectSelection = selection;
+        ActiveSegment.EditEffectSelection = selection;
         EffectsChanged(
             nameof(SpeedMultiplier),
             nameof(SpeedMultiplierText),
@@ -534,12 +574,12 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         var selection = GraphicEqualizerSelection.FromPreset(
             preset
         );
-        if (selection.Equals(_equalizerSelection))
+        if (selection.Equals(ActiveSegment.EqualizerSelection))
         {
             return;
         }
 
-        _equalizerSelection = selection;
+        ActiveSegment.EqualizerSelection = selection;
         for (var index = 0; index < _equalizerBands.Count; index++)
         {
             _equalizerBands[index].SetFromPreset(
@@ -676,17 +716,8 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             }
 
             _separatedStemSet = result;
-            _stemVolumes = OrderStemsForDisplay(result)
-                .Select(
-                    stem =>
-                        new StemVolumeViewModel(
-                            stem.Kind,
-                            OnStemVolumeChanged
-                        )
-                )
-                .ToArray();
+            RebuildStemVolumes();
             StemProgressPercent = 100;
-            OnPropertyChanged(nameof(StemVolumes));
             OnPropertyChanged(nameof(HasSeparatedStems));
             StatusMessage = AppStrings.StemIsolationReady;
         }
@@ -791,6 +822,18 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             );
         }
 
+        if (_splitPoints.Count > 0)
+        {
+            clampedStart = Min(
+                clampedStart,
+                _splitPoints[0] - MinimumSegmentDuration
+            );
+            clampedEnd = Max(
+                clampedEnd,
+                _splitPoints[^1] + MinimumSegmentDuration
+            );
+        }
+
         if (clampedEnd - clampedStart < MinimumSelection)
         {
             ClearSelection();
@@ -803,6 +846,131 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         SelectionEnd = clampedEnd;
         StatusMessage = string.Empty;
         NotifySelectionProperties();
+    }
+
+    public bool AddSplit(TimeSpan position)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (
+            SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return false;
+        }
+
+        var segmentIndex = FindSegmentIndex(position);
+        var segmentStart = segmentIndex == 0
+            ? selectionStart
+            : _splitPoints[segmentIndex - 1];
+        var segmentEnd = segmentIndex == _splitPoints.Count
+            ? selectionEnd
+            : _splitPoints[segmentIndex];
+        if (
+            position - segmentStart < MinimumSegmentDuration
+            || segmentEnd - position < MinimumSegmentDuration
+        )
+        {
+            return false;
+        }
+
+        var inherited = _segmentEffects[segmentIndex].Clone();
+        _splitPoints.Insert(segmentIndex, position);
+        _segmentEffects.Insert(segmentIndex + 1, inherited);
+        _activeSegmentIndex = segmentIndex + 1;
+        RefreshActiveSegmentControls();
+        SegmentStructureChanged();
+        return true;
+    }
+
+    public TimeSpan MoveSplit(int splitIndex, TimeSpan position)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentOutOfRangeException.ThrowIfNegative(splitIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(
+            splitIndex,
+            _splitPoints.Count
+        );
+        if (
+            SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return _splitPoints[splitIndex];
+        }
+
+        var minimum =
+            (splitIndex == 0
+                ? selectionStart
+                : _splitPoints[splitIndex - 1])
+            + MinimumSegmentDuration;
+        var maximum =
+            (splitIndex == _splitPoints.Count - 1
+                ? selectionEnd
+                : _splitPoints[splitIndex + 1])
+            - MinimumSegmentDuration;
+        var clamped = Clamp(position, minimum, maximum);
+        if (_splitPoints[splitIndex] == clamped)
+        {
+            return clamped;
+        }
+
+        _splitPoints[splitIndex] = clamped;
+        SegmentStructureChanged();
+        return clamped;
+    }
+
+    public bool RemoveSplit(int splitIndex)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (splitIndex < 0 || splitIndex >= _splitPoints.Count)
+        {
+            return false;
+        }
+
+        _splitPoints.RemoveAt(splitIndex);
+        _segmentEffects.RemoveAt(splitIndex + 1);
+        _activeSegmentIndex = Math.Min(
+            splitIndex,
+            _segmentEffects.Count - 1
+        );
+        RefreshActiveSegmentControls();
+        SegmentStructureChanged();
+        return true;
+    }
+
+    public void SetActiveSegment(int segmentIndex)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (
+            segmentIndex < 0
+            || segmentIndex >= _segmentEffects.Count
+            || _activeSegmentIndex == segmentIndex
+        )
+        {
+            return;
+        }
+
+        _activeSegmentIndex = segmentIndex;
+        RefreshActiveSegmentControls();
+        NotifyActiveSegmentProperties();
+    }
+
+    public void ResetSplits()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_splitPoints.Count == 0)
+        {
+            return;
+        }
+
+        var preserved = ActiveSegment.Clone();
+        _splitPoints.Clear();
+        _segmentEffects.Clear();
+        _segmentEffects.Add(preserved);
+        _activeSegmentIndex = 0;
+        RefreshActiveSegmentControls();
+        SegmentStructureChanged();
     }
 
     public void SetActiveEdge(SelectionEdge edge) =>
@@ -826,7 +994,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         CancelAndResetStemMix();
         if (edge == SelectionEdge.Start)
         {
-            var maximum = end - MinimumSelection;
+            var maximum = _splitPoints.Count == 0
+                ? end - MinimumSelection
+                : _splitPoints[0] - MinimumSegmentDuration;
             SelectionStart = Clamp(
                 start + change,
                 DisplayStart,
@@ -835,7 +1005,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         }
         else
         {
-            var minimum = start + MinimumSelection;
+            var minimum = _splitPoints.Count == 0
+                ? start + MinimumSelection
+                : _splitPoints[^1] + MinimumSegmentDuration;
             SelectionEnd = Clamp(
                 end + change,
                 minimum,
@@ -850,7 +1022,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     public void TogglePreview()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_previewPlayer.IsPlaying)
+        if (_previewPlayer.IsPlaying || _previewRestartPending)
         {
             StopPreview();
             return;
@@ -866,7 +1038,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            var selection = CreateSelectionSnapshot();
+            var selection = CreateSelectionSnapshot(
+                _lifetimeCancellation.Token
+            );
             if (selection is null)
             {
                 return;
@@ -878,15 +1052,11 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            var resumeAt = PreviewResumePositionMapper.Map(
+            PlayPreviewSnapshot(
+                selection,
                 previousPosition,
-                previousDuration,
-                selection.Duration
+                previousDuration
             );
-            _previewPlayer.Play(selection, resumeAt);
-            _activePreviewDuration = selection.Duration;
-            OnPropertyChanged(nameof(IsPlaying));
-            OnPropertyChanged(nameof(PreviewButtonText));
         }
         catch (Exception exception)
         {
@@ -896,6 +1066,23 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 exception.Message
             );
         }
+    }
+
+    private void PlayPreviewSnapshot(
+        AudioBufferSnapshot selection,
+        TimeSpan previousPosition,
+        TimeSpan previousDuration
+    )
+    {
+        var resumeAt = PreviewResumePositionMapper.Map(
+            previousPosition,
+            previousDuration,
+            selection.Duration
+        );
+        _previewPlayer.Play(selection, resumeAt);
+        _activePreviewDuration = selection.Duration;
+        OnPropertyChanged(nameof(IsPlaying));
+        OnPropertyChanged(nameof(PreviewButtonText));
     }
 
     public async Task ExportAsync()
@@ -917,7 +1104,20 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         StatusMessage = string.Empty;
         try
         {
-            var selection = CreateSelectionSnapshot();
+            var segmentedRequest = _splitPoints.Count == 0
+                ? null
+                : CreateSegmentedRenderRequest();
+            var selection = _splitPoints.Count == 0
+                ? CreateSelectionSnapshot(
+                    _lifetimeCancellation.Token
+                )
+                : await Task.Run(
+                    () => RenderSegmentedRequest(
+                        segmentedRequest!,
+                        _lifetimeCancellation.Token
+                    ),
+                    _lifetimeCancellation.Token
+                );
             if (selection is null)
             {
                 return;
@@ -1029,6 +1229,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        CancelPendingPreviewRender();
         _lifetimeCancellation.Cancel();
         _previewPlayer.PositionChanged -= OnPreviewPositionChanged;
         _previewPlayer.PlaybackStopped -= OnPreviewStopped;
@@ -1037,7 +1238,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         _disposed = true;
     }
 
-    private AudioBufferSnapshot? CreateSelectionSnapshot()
+    private AudioBufferSnapshot? CreateSelectionSnapshot(
+        CancellationToken cancellationToken = default
+    )
     {
         var selection = CreateRawSelectionSnapshot();
         if (selection is null)
@@ -1045,30 +1248,30 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             return null;
         }
 
+        var segmentSettings = CreateSegmentRenderSettings();
+        if (_splitPoints.Count > 0)
+        {
+            return SegmentedClipRenderer.Render(
+                selection,
+                segmentSettings,
+                _separatedStemSet,
+                cancellationToken
+            );
+        }
+
         if (_separatedStemSet is not null)
         {
             selection = StemRemixer.Mix(
                 _separatedStemSet,
-                _stemVolumes.ToDictionary(
-                    stem => stem.Kind,
-                    stem => stem.VolumePercent / 100d
-                ),
-                _lifetimeCancellation.Token
+                segmentSettings[0].StemGains,
+                cancellationToken
             );
         }
 
         return ClipEffectsProcessor.Process(
             selection,
-            new ClipEffectSettings
-            {
-                SpeedMultiplier = SpeedMultiplier,
-                EqualizerCurve = _equalizerSelection.Curve,
-                ReverbWetMix =
-                    ReverbAmountPercent / 100,
-                LoopCount = LoopCount,
-                RotationRateHertz = RotationRateHertz,
-            },
-            _lifetimeCancellation.Token
+            segmentSettings[0].Effects,
+            cancellationToken
         );
     }
 
@@ -1083,12 +1286,97 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             return null;
         }
 
-        return AudioSnapshotSlicer.Slice(
+        return TryCreateRawSelectionSnapshot();
+    }
+
+    private AudioBufferSnapshot? TryCreateRawSelectionSnapshot()
+    {
+        if (
+            SelectionStart is not { } start
+            || SelectionEnd is not { } end
+        )
+        {
+            return null;
+        }
+
+        _rawSelectionSnapshot ??= AudioSnapshotSlicer.Slice(
             Snapshot,
             start,
             end
         );
+        return _rawSelectionSnapshot;
     }
+
+    private IReadOnlyList<ClipSegmentRenderSettings>
+        CreateSegmentRenderSettings()
+    {
+        if (
+            SelectionStart is not { } selectionStart
+            || SelectionEnd is not { } selectionEnd
+        )
+        {
+            return Array.Empty<ClipSegmentRenderSettings>();
+        }
+
+        var settings = new ClipSegmentRenderSettings[
+            _segmentEffects.Count
+        ];
+        var start = selectionStart;
+        for (var index = 0; index < settings.Length; index++)
+        {
+            var end = index < _splitPoints.Count
+                ? _splitPoints[index]
+                : selectionEnd;
+            settings[index] = _segmentEffects[index]
+                .CreateRenderSettings(start, end);
+            start = end;
+        }
+
+        return settings;
+    }
+
+    private TimeSpan CalculateExportDuration()
+    {
+        var raw = TryCreateRawSelectionSnapshot();
+        if (raw is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var settings = CreateSegmentRenderSettings();
+        return _splitPoints.Count == 0
+            ? ClipEffectsProcessor.GetOutputDuration(
+                raw,
+                settings[0].Effects
+            )
+            : SegmentedClipRenderer.GetOutputDuration(raw, settings);
+    }
+
+    private SegmentedRenderRequest? CreateSegmentedRenderRequest()
+    {
+        var raw = TryCreateRawSelectionSnapshot();
+        if (raw is null)
+        {
+            return null;
+        }
+
+        return new SegmentedRenderRequest(
+            raw,
+            CreateSegmentRenderSettings().ToArray(),
+            _separatedStemSet
+        );
+    }
+
+    private static AudioBufferSnapshot RenderSegmentedRequest(
+        SegmentedRenderRequest request,
+        CancellationToken cancellationToken
+    ) =>
+        SegmentedClipRenderer.Render(
+            request.Source,
+            request.Segments,
+            request.SeparatedStems,
+            cancellationToken
+        );
 
     private void OnEqualizerBandChanged(
         int bandIndex,
@@ -1096,39 +1384,62 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var selection = _equalizerSelection.AdjustBand(
+        var selection = ActiveSegment.EqualizerSelection.AdjustBand(
             bandIndex,
             gainDecibels
         );
-        if (selection.Equals(_equalizerSelection))
+        if (selection.Equals(ActiveSegment.EqualizerSelection))
         {
             return;
         }
 
-        _equalizerSelection = selection;
+        ActiveSegment.EqualizerSelection = selection;
         EffectsChanged(
             nameof(EqualizerPreset),
             nameof(EqualizerPresetText)
         );
     }
 
-    private void OnStemVolumeChanged()
+    private void OnStemVolumeChanged(
+        StemKind kind,
+        double volumePercent
+    )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ActiveSegment.SetStemVolumePercent(kind, volumePercent);
         EffectsChanged();
     }
 
     private void ResetStemMix()
     {
-        if (_separatedStemSet is null && _stemVolumes.Count == 0)
+        _separatedStemSet = null;
+        foreach (var segment in _segmentEffects)
         {
-            return;
+            segment.ClearStemVolumes();
         }
 
-        _separatedStemSet = null;
         _stemVolumes = Array.Empty<StemVolumeViewModel>();
         OnPropertyChanged(nameof(StemVolumes));
         OnPropertyChanged(nameof(HasSeparatedStems));
+    }
+
+    private void RebuildStemVolumes()
+    {
+        _stemVolumes = _separatedStemSet is null
+            ? Array.Empty<StemVolumeViewModel>()
+            : OrderStemsForDisplay(_separatedStemSet)
+                .Select(
+                    stem =>
+                        new StemVolumeViewModel(
+                            stem.Kind,
+                            OnStemVolumeChanged,
+                            ActiveSegment.GetStemVolumePercent(
+                                stem.Kind
+                            )
+                        )
+                )
+                .ToArray();
+        OnPropertyChanged(nameof(StemVolumes));
     }
 
     private static IEnumerable<SeparatedStem> OrderStemsForDisplay(
@@ -1155,29 +1466,121 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             .Select(stem => stem!);
     }
 
+    private int FindSegmentIndex(TimeSpan position)
+    {
+        for (var index = 0; index < _splitPoints.Count; index++)
+        {
+            if (position < _splitPoints[index])
+            {
+                return index;
+            }
+        }
+
+        return _splitPoints.Count;
+    }
+
+    private void RefreshActiveSegmentControls()
+    {
+        for (var index = 0; index < _equalizerBands.Count; index++)
+        {
+            _equalizerBands[index].SetFromPreset(
+                ActiveSegment.EqualizerSelection.Curve[index]
+            );
+        }
+
+        RebuildStemVolumes();
+    }
+
+    private void SegmentStructureChanged()
+    {
+        NotifyActiveSegmentProperties();
+        EffectsChanged(
+            nameof(SplitPoints),
+            nameof(ActiveSegmentIndex),
+            nameof(SegmentCount),
+            nameof(ActiveSegmentText)
+        );
+    }
+
+    private void NotifyActiveSegmentProperties()
+    {
+        string[] propertyNames =
+        [
+            nameof(ActiveSegmentIndex),
+            nameof(SegmentCount),
+            nameof(ActiveSegmentText),
+            nameof(SpeedMultiplier),
+            nameof(SpeedMultiplierText),
+            nameof(ReverbAmountPercent),
+            nameof(ReverbAmountText),
+            nameof(RotationRateHertz),
+            nameof(RotationRateText),
+            nameof(EditEffectPreset),
+            nameof(EditEffectPresetText),
+            nameof(LoopCount),
+            nameof(LoopCountText),
+            nameof(EqualizerPreset),
+            nameof(EqualizerPresetText),
+            nameof(StemVolumes),
+            nameof(ExportDuration),
+            nameof(HasAdjustedExportDuration),
+            nameof(ExportDurationText),
+        ];
+        foreach (var propertyName in propertyNames)
+        {
+            OnPropertyChanged(propertyName);
+        }
+    }
+
     private void EffectsChanged(params string[] propertyNames)
     {
-        var restartPreview = _previewPlayer.IsPlaying;
-        var previousPosition = restartPreview
-            ? _previewPlayer.CurrentAudioPosition
-            : TimeSpan.Zero;
-        var previousDuration = restartPreview
-            ? _activePreviewDuration
-            : TimeSpan.Zero;
-        StopPreview();
+        var restartPreview =
+            _previewPlayer.IsPlaying || _previewRestartPending;
+        var previousPosition = _previewRestartPending
+            ? _pendingPreviewPosition
+            : restartPreview
+                ? _previewPlayer.CurrentAudioPosition
+                : TimeSpan.Zero;
+        var previousDuration = _previewRestartPending
+            ? _pendingPreviewDuration
+            : restartPreview
+                ? _activePreviewDuration
+                : TimeSpan.Zero;
+        StopPreviewPlayback();
         foreach (var propertyName in propertyNames)
         {
             OnPropertyChanged(propertyName);
         }
 
+        OnPropertyChanged(nameof(ExportDuration));
+        OnPropertyChanged(nameof(HasAdjustedExportDuration));
+        OnPropertyChanged(nameof(ExportDurationText));
+
         StatusMessage = string.Empty;
         if (restartPreview)
         {
-            StartPreview(previousPosition, previousDuration);
+            if (_splitPoints.Count == 0)
+            {
+                CancelPendingPreviewRender();
+                StartPreview(previousPosition, previousDuration);
+            }
+            else
+            {
+                ScheduleSegmentPreviewRender(
+                    previousPosition,
+                    previousDuration
+                );
+            }
         }
     }
 
     private void StopPreview()
+    {
+        CancelPendingPreviewRender();
+        StopPreviewPlayback();
+    }
+
+    private void StopPreviewPlayback()
     {
         if (_previewPlayer.IsPlaying)
         {
@@ -1190,11 +1593,136 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PreviewButtonText));
     }
 
+    private void ScheduleSegmentPreviewRender(
+        TimeSpan previousPosition,
+        TimeSpan previousDuration
+    )
+    {
+        CancelPendingPreviewRender();
+        var request = CreateSegmentedRenderRequest();
+        if (request is null)
+        {
+            return;
+        }
+
+        var cancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token
+            );
+        _previewRenderCancellation = cancellation;
+        _previewRestartPending = true;
+        _pendingPreviewPosition = previousPosition;
+        _pendingPreviewDuration = previousDuration;
+        _ = RenderSegmentPreviewAfterDebounceAsync(
+            cancellation,
+            request,
+            previousPosition,
+            previousDuration
+        );
+    }
+
+    private async Task RenderSegmentPreviewAfterDebounceAsync(
+        CancellationTokenSource cancellation,
+        SegmentedRenderRequest request,
+        TimeSpan previousPosition,
+        TimeSpan previousDuration
+    )
+    {
+        try
+        {
+            await Task.Delay(
+                SegmentPreviewDebounce,
+                cancellation.Token
+            );
+            var selection = await Task.Run(
+                () =>
+                    RenderSegmentedRequest(
+                        request,
+                        cancellation.Token
+                    ),
+                cancellation.Token
+            );
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (selection is null)
+            {
+                return;
+            }
+
+            if (selection.Audio.IsEmpty)
+            {
+                StatusMessage = AppStrings.SelectionHasNoAudio;
+                return;
+            }
+
+            _previewRestartPending = false;
+            PlayPreviewSnapshot(
+                selection,
+                previousPosition,
+                previousDuration
+            );
+        }
+        catch (OperationCanceledException)
+            when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (
+                ReferenceEquals(
+                    _previewRenderCancellation,
+                    cancellation
+                )
+            )
+            {
+                _previewRestartPending = false;
+                StatusMessage = string.Format(
+                    CultureInfo.CurrentCulture,
+                    AppStrings.PreviewFailed,
+                    exception.Message
+                );
+            }
+        }
+        finally
+        {
+            if (
+                ReferenceEquals(
+                    _previewRenderCancellation,
+                    cancellation
+                )
+            )
+            {
+                _previewRenderCancellation = null;
+                _previewRestartPending = false;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelPendingPreviewRender()
+    {
+        _previewRestartPending = false;
+        _previewRenderCancellation?.Cancel();
+        _previewRenderCancellation = null;
+    }
+
     public void ClearSelection()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         StopPreview();
         CancelAndResetStemMix();
+        if (_splitPoints.Count > 0)
+        {
+            var preserved = ActiveSegment.Clone();
+            _splitPoints.Clear();
+            _segmentEffects.Clear();
+            _segmentEffects.Add(preserved);
+            _activeSegmentIndex = 0;
+            RefreshActiveSegmentControls();
+            OnPropertyChanged(nameof(SplitPoints));
+            NotifyActiveSegmentProperties();
+        }
+
         SelectionStart = null;
         SelectionEnd = null;
         NotifySelectionProperties();
@@ -1210,6 +1738,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanIsolateStems));
+        OnPropertyChanged(nameof(ExportDuration));
+        OnPropertyChanged(nameof(HasAdjustedExportDuration));
+        OnPropertyChanged(nameof(ExportDurationText));
     }
 
     private void CancelAndResetStemMix()
@@ -1267,6 +1798,18 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             : value > maximum
                 ? maximum
                 : value;
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) =>
+        left <= right ? left : right;
+
+    private static TimeSpan Max(TimeSpan left, TimeSpan right) =>
+        left >= right ? left : right;
+
+    private sealed record SegmentedRenderRequest(
+        AudioBufferSnapshot Source,
+        IReadOnlyList<ClipSegmentRenderSettings> Segments,
+        SeparatedStemSet? SeparatedStems
+    );
 
     private void OnPropertyChanged(
         [CallerMemberName] string? propertyName = null

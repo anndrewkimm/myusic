@@ -88,4 +88,16 @@ internal static class AudioStrings
 
     public const string InvalidStemOutput =
         "The stem model returned audio in an unexpected format.";
+
+    public const string SegmentedSelectionEmpty =
+        "A segmented clip must contain at least one segment.";
+
+    public const string InvalidSegmentTimeline =
+        "Clip segments must be contiguous and cover the selected timeline.";
+
+    public const string SegmentedStemMixUnavailable =
+        "Separate the stems before applying a per-segment stem mix.";
+
+    public const string SegmentedOutputTooLarge =
+        "The combined segment effects produce too much audio to render.";
 }

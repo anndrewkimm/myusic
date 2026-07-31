@@ -108,6 +108,10 @@
                 Margin="0,0,0,8"
                 IsEnabled="{Binding CanEditSelection}"
                 ActiveEdgeChanged="OnWaveformActiveEdgeChanged"
+                NewSelectionStarted="OnWaveformNewSelectionStarted"
+                SegmentActivated="OnWaveformSegmentActivated"
+                SplitChanged="OnWaveformSplitChanged"
+                SplitRequested="OnWaveformSplitRequested"
                 SelectionChanged="OnWaveformSelectionChanged">
                 <local:WaveformControl.Style>
                     <Style TargetType="local:WaveformControl">
@@ -125,12 +129,19 @@
                 </local:WaveformControl.Style>
             </local:WaveformControl>
 
-            <TextBlock
+            <StackPanel
                 Grid.Row="3"
-                Margin="2,0,0,14"
-                FontSize="12"
-                Foreground="{StaticResource MutedTextBrush}"
-                Text="{x:Static local:AppStrings.FineAdjustHint}" />
+                Margin="2,0,0,14">
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{x:Static local:AppStrings.FineAdjustHint}" />
+                <TextBlock
+                    Margin="0,3,0,0"
+                    FontSize="11"
+                    Foreground="{StaticResource AccentBrush}"
+                    Text="{x:Static local:AppStrings.SegmentEditingHint}" />
+            </StackPanel>
 
             <Grid
                 Grid.Row="4"
@@ -266,6 +277,13 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <DockPanel Margin="0,0,0,8">
+                        <TextBlock
+                            DockPanel.Dock="Right"
+                            Margin="12,0,0,0"
+                            FontFamily="Segoe UI Semibold"
+                            FontSize="10"
+                            Foreground="{StaticResource AccentBrush}"
+                            Text="{Binding ActiveSegmentText}" />
                         <TextBlock
                             DockPanel.Dock="Right"
                             FontSize="10"
@@ -898,6 +916,30 @@
             </Border>
 
             <StackPanel Grid.Row="7" Margin="0,0,0,12">
+                <Border
+                    Margin="0,0,0,8"
+                    Padding="11,8"
+                    Background="#202A2A"
+                    BorderBrush="#365D50"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger
+                                    Binding="{Binding HasAdjustedExportDuration}"
+                                    Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource AccentBrush}"
+                        Text="{Binding ExportDurationText}" />
+                </Border>
                 <Border
                     x:Name="ExcludedWarning"
                     Margin="0,0,0,8"
