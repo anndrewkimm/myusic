@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [008]
 ---
@@ -129,3 +129,37 @@ picker accepts.
   container can still hold an audio codec unavailable on a particular
   Windows installation; that path now fails clearly without opening a
   partial trim window.
+
+## Review notes (2026-07-31)
+
+Reviewed independently against the diff (commit `81f093a`). All 5 acceptance
+criteria and all 4 edge cases verified against actual code, not just the
+"What shipped" claims:
+
+- Filter string (`AppStrings.cs`) and `LocalAudioFileImporter`'s extension
+  allowlist both include mp4/mkv/webm; single file-picker call site, no
+  bypass path.
+- No special-casing: `Decode()` is structurally unchanged, same
+  `MediaFoundationReader` → `MediaFoundationResampler` → PCM path for every
+  format.
+- New `LocalAudioImportErrorMapper` correctly distinguishes the
+  no-audio-track HRESULT (`MF_E_INVALIDSTREAMNUMBER`) from generic decode
+  failure, both still funneled through the existing catch — never an
+  unhandled crash. Covered by a direct test.
+- Decoded-PCM size cap (not source file size) confirmed unaffected by
+  video's larger file size.
+- MKV null-artist metadata fix (`JoinArtists` now null-safe) is real and
+  tested, not just claimed.
+- No scope creep: no YouTube/URL-fetch code leaked in under this spec's
+  name (spec 018 stays a doc-only reference in the same commit).
+- 146/146 tests pass in Debug and Release; `dotnet format --verify-no-changes`
+  clean.
+
+One non-blocking note: acceptance criterion 4 ("drop any container that
+doesn't reliably decode") couldn't be fully verified by automated tests
+alone, since there are no binary MP4/MKV/WebM fixtures checked into the
+repo — the claim that real fixtures were hand-tested during implementation
+is trusted but not independently re-verified here. Not a blocker; same
+trust level spec 008 already operated at for its own format claims.
+
+Clean. Flipped to `DONE`.

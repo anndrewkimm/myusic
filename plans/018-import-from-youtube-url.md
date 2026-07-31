@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [008, 017]
 ---
@@ -131,25 +131,25 @@ framing rather than becoming something else.
 
 ## Acceptance criteria
 
-- [ ] Tray menu has a working "Import from URL..." entry, separate from
+- [x] Tray menu has a working "Import from URL..." entry, separate from
       "Import audio file...".
-- [ ] Pasting a valid single-video URL and confirming fetches audio-only,
+- [x] Pasting a valid single-video URL and confirming fetches audio-only,
       decodes it through the existing `LocalAudioFileImporter` unchanged
       (via a temp file), and opens the trim window exactly like any other
       import — full waveform, no default selection.
-- [ ] Playlist/channel URLs are rejected with a clear message rather than
+- [x] Playlist/channel URLs are rejected with a clear message rather than
       importing only the first video.
-- [ ] Download shows progress and Cancel actually aborts cleanly (no
+- [x] Download shows progress and Cancel actually aborts cleanly (no
       orphaned temp files, no background task still running after cancel).
-- [ ] Video title/channel/thumbnail populate as title/artist/album-art with
+- [x] Video title/channel/thumbnail populate as title/artist/album-art with
       the same fallback discipline as spec 008 when unavailable.
-- [ ] A one-time personal-use notice appears on first use of this feature
+- [x] A one-time personal-use notice appears on first use of this feature
       and not on subsequent uses.
-- [ ] All edge cases above produce clear, non-crashing, specific errors.
-- [ ] New fetch/extraction logic lives in `Hookline.Audio`, is UI-agnostic,
+- [x] All edge cases above produce clear, non-crashing, specific errors.
+- [x] New fetch/extraction logic lives in `Hookline.Audio`, is UI-agnostic,
       and has unit test coverage independent of the UI thread and independent
       of real network access (fake/stubbed stream resolution).
-- [ ] No changes to `TrimWindow`, `TrimViewModel`, `Mp3ClipExporter`, or the
+- [x] No changes to `TrimWindow`, `TrimViewModel`, `Mp3ClipExporter`, or the
       catalog beyond what spec 008 already established.
 
 ## Open questions (implementer-level, non-blocking)
@@ -181,3 +181,54 @@ framing rather than becoming something else.
 - No implementation deviations. Thumbnail retrieval remains best-effort and
   extraction still depends on YouTube's upstream delivery behavior, with a
   specific non-crashing error if it changes.
+
+## Review notes (2026-07-31)
+
+Reviewed commit e209c32 against every acceptance criterion, edge case, and
+the Codex-handoff "don't special-case a URL clip" warning by reading every
+changed file's full diff, not just the "what shipped" summary. Verdict:
+clean, flipped to DONE.
+
+- Confirmed `TrimWindow`, `TrimViewModel`, `Mp3ClipExporter`,
+  `LocalAudioFileImporter`, and the catalog are untouched by e209c32
+  (`git show e209c32 --stat`) — the warning was heeded.
+- `VideoUrlParser` (in `UrlAudioImportService.cs`) rejects non-YouTube
+  hosts, malformed URLs, and playlist/channel URLs (`list=` query param,
+  `/playlist`, `/channel`, `/c`, `/user`, `/@handle` paths) before any
+  network call — verified against 5 theory cases in
+  `UrlAudioImportServiceTests.InvalidAndBulkUrlsAreRejectedBeforeResolution`.
+- Confirm-before-download flow, real progress (YoutubeExplode's own download
+  progress callback, not synthetic), and clean cancellation are all present;
+  `UrlAudioImportService.ImportAsync`'s `finally` block always deletes the
+  temp file and its unique temp directory, on success, failure, or
+  cancellation alike (`UrlAudioImportService.cs:96-101`).
+- One-time personal-use notice is a dismissible in-window banner (not a
+  blocking `MessageBox`; `UrlImportWindow` opens via `.Show()`, not
+  `.ShowDialog()`), persisted to the same JSON settings document as spec
+  005's Local Files hint, marked shown on first window open regardless of
+  dismissal — `OutputFolderSettingsTests.UrlImportNoticeIsShownOnlyOnce`
+  covers persistence across instances.
+- Extraction library is YoutubeExplode 6.6.0 (pure .NET, no bundled
+  external binary); no yt-dlp fallback was needed or used, so there was
+  nothing to flag per the "don't silently substitute" discipline.
+- New fetch/import logic lives entirely in `Hookline.Audio`
+  (`UrlAudioImportService`, `YoutubeVideoAudioSource`, `IVideoAudioSource`)
+  with zero `YoutubeExplode` or network references in `Hookline.App` —
+  confirmed by grep. All 6 new `Hookline.Audio.Tests` and dialog-state
+  `Hookline.App.Tests` use fakes/stubs, no real network access.
+- Matches `docs/CONVENTIONS.md`'s 2026-07-30 URL-fetch paragraph:
+  personal-use language in-app, single video only, no bulk/playlist path.
+- Tests: Release build/test — 171/171 passed (24 NowPlaying + 69 Audio + 78
+  App). Debug — NowPlaying (24) and Audio (69) passed, but
+  `Hookline.App`/`Hookline.App.Tests` could not build: `Hookline.App.exe`
+  (PID 10984) was running during review and file-locked
+  `Hookline.Audio.dll`/`Hookline.NowPlaying.dll` in the App project's output
+  dir (`MSB3027`), the same known environmental blocker flagged in a prior
+  review earlier today. Not a code defect — no `#if DEBUG` conditionals
+  exist anywhere in the new files, and the App-layer code is
+  build-config-agnostic. Re-run `dotnet test Hookline.sln -c Debug` once
+  that process is closed to get a fully clean Debug run on record.
+- Minor process nit only, not a functional gap: the spec's acceptance
+  checkboxes were left unchecked by the implementer despite "what shipped"
+  claiming completion; checked them off above after independently verifying
+  each one against the diff.

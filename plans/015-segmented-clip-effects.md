@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: IN_PROGRESS
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 009, 010, 011, 012, 013, 016]
 ---
@@ -246,3 +246,43 @@ extra toggle to learn, but nothing hidden from the user either.
   warnings. Debug output was not rebuilt because the user's running Hookline
   instance currently holds its audio DLL open; this is not a product gap.
 - No acceptance-criteria deviations or known implementation gaps.
+
+## Review notes (2026-07-31)
+
+Reviewed independently against commit `cf2b9e1`. Claims 1, 2, 4, 5, 6, and 8
+from the spec verified directly against code and tests (250ms floor,
+double-click hit-testing precedence + settings inheritance, live duration
+readout, single shared stem separation, 300ms debounce + spec 016 resume
+reuse, preview/export byte-identity by construction) — all solid, with
+citations kept on file. Two things before this goes to `DONE`:
+
+1. **The 15ms crossfade is not actually the shared constant the spec calls
+   for.** `Mp3ClipExporter.cs` has its own `private FadeDuration = 15ms`;
+   `SegmentedClipRenderer.cs` independently declares its own
+   `BoundaryCrossfadeDuration = 15ms`. Same value today, but two separate
+   magic numbers, not one shared source of truth — the spec's own framing
+   ("reusing an established constant instead of inventing a new one") isn't
+   what's in the code. Please hoist this to one shared internal constant
+   both classes reference, so the two can't silently drift apart if either
+   is ever retuned.
+2. **Debug build/test verification is still blocked** by a running
+   `Hookline.App.exe` instance holding `Hookline.Audio.dll`/
+   `Hookline.NowPlaying.dll` locked (confirmed directly via `tasklist` during
+   this review — same issue flagged in "What shipped", not yet resolved).
+   Release is fully clean (155/155, 0 warnings) and `Hookline.Audio.Tests`/
+   `Hookline.NowPlaying.Tests` pass standalone in Debug, but the 72
+   `Hookline.App.Tests` — where nearly all of this spec's own new tests
+   live — have not been confirmed in Debug. Not asking you to kill the
+   owner's running instance; just re-run `dotnet test Hookline.sln -c Debug`
+   once nothing has the app open, and report the actual result, before this
+   flips to `DONE`.
+
+Optional/minor, not blocking: the zero-split path's `ReverbWetMix` now reads
+the raw stored value instead of routing through the rounded display getter
+the old code used. They only coincide today because the Reverb slider is
+tick-snapped to multiples of 5 — worth a one-line confirmation that this is
+intentional rather than incidental, so "byte-identical to the pre-015 path"
+stays a provable invariant rather than one that depends on current UI
+tick-snapping.
+
+Back to `IN_PROGRESS` for item 1 (a real fix) and re-verification of item 2.
