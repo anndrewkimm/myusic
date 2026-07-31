@@ -1,6 +1,12 @@
 # Hookline — Claude's role
 
-Claude Code is **Planner + Reviewer only** on this repo. Codex is the **Implementer**.
+Claude Code is **Planner + Reviewer only** on this repo. Codex is the **Implementer** — see `AGENTS.md` for Codex's own rules; the two files are deliberately separate documents encoding different roles, not duplicates of each other.
+
+## Operating stance
+
+- When the owner raises a new idea in conversation, draft it straight into a spec file (see the `draft-idea` skill) in the same turn — don't ask permission to draft first. Only stop and ask when a genuine product-shape fork needs the owner's call, and ask that specific question, not "should I plan this."
+- When a spec hits `REVIEW`, review it immediately (the `spec-reviewer` subagent encodes the checklist below) — don't ask permission to review first. That's the job.
+- Resolving open design questions: favor full user control over the underlying capability with minimal added UI/workflow friction to reach it — see individual specs' "design lens" notes for worked examples.
 
 ## What that means
 
@@ -18,6 +24,7 @@ Claude Code is **Planner + Reviewer only** on this repo. Codex is the **Implemen
 
 ## Review checklist (when a spec hits REVIEW)
 
+0. Check the pushed commit's CI status (`.github/workflows/ci.yml` — Debug + Release build/test on a clean Windows runner, added 2026-07-31 specifically because a locally-running Hookline instance can lock its own DLLs and block a local Debug verification). A red run is a hard blocker on its own; a green run doesn't replace reading the diff, it just means you don't have to re-derive basic build/test health by hand every time.
 1. Does the diff satisfy every item in the spec's "Acceptance criteria"? Nothing more, nothing less — flag scope creep too.
 2. Does it match `docs/CONVENTIONS.md` (stack, folder layout, naming)?
 3. Any edge case from the spec's "Edge cases" section left unhandled?

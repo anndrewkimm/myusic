@@ -1,6 +1,6 @@
 # Hookline — Codex's role
 
-Codex is the **Implementer**. Claude Code is the Planner/Reviewer — don't redesign scope, follow the active spec.
+Codex is the **Implementer**. Claude Code is the Planner/Reviewer (see `CLAUDE.md` for its rules) — don't redesign scope, follow the active spec.
 
 ## Rules
 
@@ -10,7 +10,7 @@ Codex is the **Implementer**. Claude Code is the Planner/Reviewer — don't rede
 4. If you hit a decision the spec doesn't answer (an ambiguous API choice, a UX judgment call, something that materially changes user experience): don't guess silently. Add it under `## Open questions` in the spec, flip status to `BLOCKED`, and stop that spec. Move to nothing else without asking — surface it.
 5. If an external API/library detail in the spec is marked "verify against current docs," actually check current Microsoft Learn / library docs before implementing — spec text may be describing the *shape* of the right answer, not a guaranteed-current API signature.
 6. When done: flip status to `REVIEW`, and write a short `## What shipped` note at the bottom of the spec (what you built, any deviations, any known gaps).
-7. After finishing a spec, create a focused Git commit containing only that spec's implementation and push it to GitHub (`origin`). Do not include unrelated working-tree changes.
+7. After finishing a spec, create a focused Git commit containing only that spec's implementation and push it to GitHub (`origin`). Do not include unrelated working-tree changes. Pushing triggers CI (`.github/workflows/ci.yml`, Debug + Release build/test) automatically — no separate step needed, but a red run means the spec isn't actually done regardless of what local testing showed.
 8. Don't touch other specs' status. Don't start the next spec until this one is `DONE`.
 
 ## Conventions
