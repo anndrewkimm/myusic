@@ -4,7 +4,11 @@ Shared truth for stack, structure, and style. Specs should not repeat this — t
 
 ## What Hookline is
 
-A Windows desktop app that watches what's playing in the Spotify desktop app, continuously buffers the actual audio output in the background, and lets you trim a piece you like and export it as an MP3 — with zero manual "hit record in time" or "download the file yourself" steps. Not a stream-ripper: it captures system audio output (the same category as recording what's playing through your speakers), not Spotify's encrypted data stream. Personal/offline use; if published to GitHub, framed clearly as a personal-archiving tool, not a distribution/downloader service.
+A Windows desktop app that watches what's playing in the Spotify desktop app, continuously buffers the actual audio output in the background, and lets you trim a piece you like and export it as an MP3 — with zero manual "hit record in time" steps. The live-capture path is not a stream-ripper: it captures system audio output (the same category as recording what's playing through your speakers), not Spotify's encrypted data stream.
+
+Hookline also has two other ways to get audio in: importing a file already on disk (spec 008, widened in spec 017), and — as of the 2026-07-30 decision below — importing directly from a URL (spec 018). That last path genuinely does fetch content from a third-party service rather than recording local output, which is a different and higher-risk category than the live-capture path; spec 018 documents the specific caveats and constraints (single video at a time, no playlists, no bulk fetching, personal-use framing shown in-app).
+
+Personal/single-user/offline use throughout, for content the user has the right to use. No server component, and Hookline never hosts, shares, or redistributes imported content to other users — that's the actual line for "not a distribution service," not "never fetches from a URL." If published to GitHub, framed clearly as a personal-archiving tool, with the URL-import path's caveats stated plainly rather than glossed over.
 
 V1 explicitly does **not** do: stem separation, note/pitch detection, audio effects beyond trim+fade, multi-source support (Spotify desktop only), or cross-platform support (Windows only). Those are backlog ideas — see `plans/000-roadmap.md`.
 

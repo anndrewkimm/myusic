@@ -25,6 +25,9 @@ public sealed class LocalAudioFileImporter
             ".m4a",
             ".aac",
             ".wma",
+            ".mp4",
+            ".mkv",
+            ".webm",
         };
 
     private readonly TimeSpan _maximumDuration;
@@ -117,9 +120,7 @@ public sealed class LocalAudioFileImporter
                 or NotSupportedException
                 or ArgumentException)
         {
-            throw new LocalAudioImportException(
-                LocalAudioImportFailure.DecodeFailed,
-                AudioStrings.ImportDecodeFailed,
+            throw LocalAudioImportErrorMapper.MapDecodeFailure(
                 exception
             );
         }
@@ -308,13 +309,15 @@ public sealed class LocalAudioFileImporter
             ? null
             : value.Trim();
 
-    private static string JoinArtists(
-        IEnumerable<string> artists
+    internal static string JoinArtists(
+        IEnumerable<string>? artists
     ) =>
-        string.Join(
-            ", ",
-            artists
-                .Select(Normalize)
-                .Where(value => value is not null)
-        );
+        artists is null
+            ? string.Empty
+            : string.Join(
+                ", ",
+                artists
+                    .Select(Normalize)
+                    .Where(value => value is not null)
+            );
 }

@@ -371,7 +371,7 @@ public sealed class TrimViewModelTests
     }
 
     [Fact]
-    public void ChangingAnEffectRestartsAnActivePreviewWithFreshAudio()
+    public void ChangingAnEffectResumesAtTheProportionalPosition()
     {
         using var fixture = new ViewModelFixture();
         fixture.ViewModel.SetSelection(
@@ -379,15 +379,37 @@ public sealed class TrimViewModelTests
             TimeSpan.FromSeconds(1.25)
         );
         fixture.ViewModel.TogglePreview();
+        fixture.Preview.CurrentAudioPosition =
+            TimeSpan.FromMilliseconds(400);
 
         fixture.ViewModel.SpeedMultiplier = 2;
 
         Assert.True(fixture.Preview.IsPlaying);
         Assert.Equal(2, fixture.Preview.PlayCallCount);
+        Assert.Equal(1, fixture.Preview.StopCallCount);
         Assert.Equal(
             TimeSpan.FromMilliseconds(500),
             fixture.Preview.LastSnapshot?.Duration
         );
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(200),
+            fixture.Preview.LastResumeAt
+        );
+    }
+
+    [Fact]
+    public void StartingPreviewFromStoppedBeginsAtZero()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.FromMilliseconds(250),
+            TimeSpan.FromSeconds(1.25)
+        );
+        fixture.ViewModel.SpeedMultiplier = 2;
+
+        fixture.ViewModel.TogglePreview();
+
+        Assert.Equal(TimeSpan.Zero, fixture.Preview.LastResumeAt);
     }
 
     [Fact]
@@ -812,19 +834,30 @@ public sealed class TrimViewModelTests
 
         public bool IsPlaying { get; private set; }
 
+        public TimeSpan CurrentAudioPosition { get; set; }
+
         public int PlayCallCount { get; private set; }
+
+        public int StopCallCount { get; private set; }
 
         public AudioBufferSnapshot? LastSnapshot { get; private set; }
 
-        public void Play(AudioBufferSnapshot snapshot)
+        public TimeSpan LastResumeAt { get; private set; }
+
+        public void Play(
+            AudioBufferSnapshot snapshot,
+            TimeSpan resumeAt = default
+        )
         {
             LastSnapshot = snapshot;
+            LastResumeAt = resumeAt;
             PlayCallCount++;
             IsPlaying = true;
         }
 
         public void Stop()
         {
+            StopCallCount++;
             IsPlaying = false;
             PlaybackStopped?.Invoke(this, EventArgs.Empty);
         }

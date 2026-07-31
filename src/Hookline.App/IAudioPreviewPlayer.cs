@@ -11,7 +11,12 @@ public interface IAudioPreviewPlayer : IDisposable
 
     bool IsPlaying { get; }
 
-    void Play(AudioBufferSnapshot snapshot);
+    TimeSpan CurrentAudioPosition { get; }
+
+    void Play(
+        AudioBufferSnapshot snapshot,
+        TimeSpan resumeAt = default
+    );
 
     void Stop();
 }

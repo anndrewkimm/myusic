@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App]
 depends_on: [011]
 ---
@@ -76,3 +76,7 @@ I've isolated the stems on a clip and I want to hear it with the vocals a bit qu
 - Added a UI-thread-independent `StemBandPositionMapper` plus endpoint, clamping, monotonic mapping, and exact round-trip tests. Added view-model coverage proving exact values and object identities survive both view switches and that Band-selected preview/export use the same output.
 - Live Release verification used the actual Ctrl+Alt+H window, a real 1.2-second buffered selection, and the installed six-stem model. All six avatars rendered without overlap at the existing 880x700/minimum-size scroll layout; the experimental warning stayed visible. Dragging Vocals to Loud produced 150% in Sliders and remained Loud after switching back to Band.
 - Validation is clean in Debug and Release: 132 tests pass (24 NowPlaying, 49 Audio, 59 App), builds have zero warnings, `dotnet format --verify-no-changes` passes, and `git diff --check` is clean. No acceptance-criteria deviations or known gaps.
+
+## Review notes
+
+Independently reviewed 2026-07-29: rebuilt Release (0 warnings) and ran the full solution — 133/133 tests pass (24 NowPlaying, 59 App, 50 Audio; one more Audio test than Codex's count since spec 013's own re-review added a regression test in the interim, unrelated to this spec). `dotnet format --verify-no-changes` and `git diff --check` both clean. All 8 acceptance criteria verified directly against code: the Sliders/Band toggle is gated behind `HasSeparatedStems` exactly like the existing panel; both views bind the same `StemVolumes` collection (`StemVolumeViewModel` is the sole source of truth, no shadow state); `StemBandPositionMapper` is a pure, UI-thread-independent monotonic mapper with its own clamp/round-trip tests; `SwitchingStemViewsPreservesTheExactSharedValues` and `StemIsolationCreatesNaturalControlsAndUsesSharedOutput` prove exact-value/object-identity preservation across view switches and byte-identical preview/export regardless of which view set the values; the 6-stem experimental warning lives structurally outside the toggle (`TrimWindow.xaml` rows 1 vs. 3) so it can never be hidden by switching views; `BandVolumeText` never surfaces a raw percentage; the whole stem panel sits inside the existing `ScrollViewer`, and 6 avatars at their 64px min-width fit well inside the 760px window `MinWidth` with no clipping. No scope creep, no stubs, no unaddressed edge case. Accepted as `DONE`.

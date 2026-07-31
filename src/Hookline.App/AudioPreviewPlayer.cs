@@ -13,6 +13,7 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
     private RawSourceWaveStream? _source;
     private MemoryStream? _audioStream;
     private AudioBufferSnapshot? _snapshot;
+    private long _playbackStartOffset;
     private bool _disposed;
 
     public AudioPreviewPlayer(Dispatcher dispatcher)
@@ -37,7 +38,13 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
     public bool IsPlaying => _output?.PlaybackState
         == NAudio.Wave.PlaybackState.Playing;
 
-    public void Play(AudioBufferSnapshot snapshot)
+    public TimeSpan CurrentAudioPosition =>
+        GetCurrentAudioPosition();
+
+    public void Play(
+        AudioBufferSnapshot snapshot,
+        TimeSpan resumeAt = default
+    )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -50,30 +57,45 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
         }
 
         StopCore(raiseStopped: false);
-
-        _snapshot = snapshot;
-        _audioStream = new MemoryStream(
-            snapshot.Audio.ToArray(),
-            writable: false
-        );
-        _source = new RawSourceWaveStream(
-            _audioStream,
-            new WaveFormat(
-                snapshot.Format.SampleRate,
-                snapshot.Format.BitsPerSample,
-                snapshot.Format.Channels
-            )
-        );
-        _output = new WaveOutEvent
+        try
         {
-            DesiredLatency = 80,
-            NumberOfBuffers = 3,
-        };
-        _output.PlaybackStopped += OnPlaybackStopped;
-        _output.Init(_source);
-        _output.Play();
-        _timer.Start();
-        RaisePosition(TimeSpan.Zero);
+            _snapshot = snapshot;
+            _audioStream = new MemoryStream(
+                snapshot.Audio.ToArray(),
+                writable: false
+            );
+            _source = new RawSourceWaveStream(
+                _audioStream,
+                new WaveFormat(
+                    snapshot.Format.SampleRate,
+                    snapshot.Format.BitsPerSample,
+                    snapshot.Format.Channels
+                )
+            );
+            _output = new WaveOutEvent
+            {
+                DesiredLatency = 80,
+                NumberOfBuffers = 3,
+            };
+            _output.PlaybackStopped += OnPlaybackStopped;
+            _output.Init(_source);
+            var playbackOffset = GetPlaybackOffset(
+                snapshot,
+                resumeAt
+            );
+            _playbackStartOffset = playbackOffset;
+            _source.Position = playbackOffset;
+            _output.Play();
+            _timer.Start();
+            RaisePosition(
+                snapshot.Format.GetDuration(playbackOffset)
+            );
+        }
+        catch
+        {
+            StopCore(raiseStopped: false);
+            throw;
+        }
     }
 
     public void Stop()
@@ -100,10 +122,7 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
             return;
         }
 
-        var audioPosition = _snapshot.Format.GetDuration(
-            _output.GetPosition()
-        );
-        RaisePosition(audioPosition);
+        RaisePosition(GetCurrentAudioPosition());
     }
 
     private void OnPlaybackStopped(
@@ -156,6 +175,42 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
         );
     }
 
+    private TimeSpan GetCurrentAudioPosition()
+    {
+        if (_output is null || _snapshot is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var audioPosition = _snapshot.Format.GetDuration(
+            _playbackStartOffset + _output.GetPosition()
+        );
+        return audioPosition > _snapshot.Duration
+            ? _snapshot.Duration
+            : audioPosition;
+    }
+
+    private static long GetPlaybackOffset(
+        AudioBufferSnapshot snapshot,
+        TimeSpan resumeAt
+    )
+    {
+        if (resumeAt <= TimeSpan.Zero)
+        {
+            return 0;
+        }
+
+        var clamped = resumeAt < snapshot.Duration
+            ? resumeAt
+            : snapshot.Duration;
+        var offset = snapshot.Format.GetAlignedByteCount(clamped);
+        var lastFrameOffset = Math.Max(
+            0,
+            snapshot.Audio.Length - snapshot.Format.BlockAlign
+        );
+        return Math.Min(offset, lastFrameOffset);
+    }
+
     private void StopCore(
         bool raiseStopped,
         bool stopOutput = true
@@ -184,6 +239,7 @@ public sealed class AudioPreviewPlayer : IAudioPreviewPlayer
         _audioStream?.Dispose();
         _audioStream = null;
         _snapshot = null;
+        _playbackStartOffset = 0;
 
         if (raiseStopped)
         {

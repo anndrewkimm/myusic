@@ -37,12 +37,20 @@ Spec 011 (stem isolation — vocals/bass/drums/other, modeled on iZotope RX's Mu
 
 **All of Phase 1 through the originally-scoped backlog (specs 001-011) is now `DONE`.** The product goal stays the same: leave the app running, hear something interesting, and get a clean clip with minimal effort.
 
+A 2026-07-29 conversation (after live-testing the app) surfaced **spec 015 (per-segment effects within a single clip)**: split a trimmed selection into multiple time-ranges via draggable split points on the waveform, and give each range its own independent EQ/stem/sound-effect/edit-preset settings, exported as one continuous file. `DRAFT` — real open questions remain (segment-boundary stitching, how Speed/Loop-driven length changes interact with a multi-segment timeline, whether stem separation reruns per segment) before it's `READY` for Codex.
+
+A 2026-07-30 brainstorm surfaced two more items, both spec'd the same day:
+
+**Spec 016 (preview keeps playing through effect changes instead of restarting from 0:00) is `DONE`** — root-caused in code: `TrimViewModel.EffectsChanged` always stopped and restarted `AudioPreviewPlayer`, which had no resume/seek capability at all. Implemented same day by Codex and reviewed same day: build/tests clean (140/140), the fraction-of-duration resume math is correctly `decimal`-based and end-clamped, and the Speed-2x resume scenario was hand-traced correct (400ms into a 1000ms buffer resumes at 200ms into the new 500ms buffer). One non-blocking residual note carried into the spec: no automated test opens a real `WaveOutEvent`, so perceived audio continuity during an actual slider-drag is worth a real listen during normal use. Also touches the same shared preview infrastructure spec 015's still-open "Live preview fidelity" question depends on.
+- **Spec 017 (widen local import to accept common downloaded video containers, e.g. MP4)** — the actual gap behind "I have to convert to MP3 before importing" is likely just the file-picker's extension allowlist, not a missing feature: export already re-encodes anything importable to MP3 (spec 008). `READY`.
+- **Spec 018 (import audio directly from a URL, e.g. a YouTube link)** — owner explicitly decided 2026-07-30 to build this despite the positioning conflict flagged when it first came up: `docs/CONVENTIONS.md` was rewritten the same day to describe it honestly (a third-party fetch, a genuinely different risk category from live capture) rather than pretend it fits the old "not a downloader" framing unchanged. Scoped tightly — single video URL at a time, no playlists, no bulk fetching, personal-use notice shown in-app, same adapter reuse pattern as specs 008/017. `READY`.
+
 Two new specs came out of a 2026-07-28 conversation about giving clips a "TikTok edit" feel:
 
-- **Spec 013 (reverb, 8D auto-pan, and one-click "Slowed + Reverb"/"Sped Up"/"8D Audio" presets)** was implemented by Codex the same day and is at `REVIEW`, awaiting independent review.
-- **Spec 012 (playful "band view" for the spec-011 stem remixer — characters instead of sliders)** is `DRAFT`, intentionally held back — going in order, 013 first.
+- **Spec 013 (reverb, 8D auto-pan, and one-click "Slowed + Reverb"/"Sped Up"/"8D Audio" presets)** is `DONE` — implemented 2026-07-28, a test-coverage gap flagged in review was closed and re-verified 2026-07-29 (133/50 tests passing across the suite).
+- **Spec 012 (playful "band view" for the spec-011 stem remixer — characters instead of sliders)** was implemented after 013 as planned and is `DONE` — reviewed 2026-07-29, all 8 acceptance criteria verified against code and tests, no gaps.
 
-**Spec 014 (fix: trim/catalog windows can get permanently stuck invisible after a failed show) jumped the queue on 2026-07-28**, same reasoning as spec 006: it breaks the app's one required interaction (the global hotkey that opens the trim window went silently unresponsive during live testing). Root cause traced to `App.xaml.cs` assigning `_trimWindow`/`_catalogWindow` before `Show()` runs, with no reset on failure — the same defect shape in both the trim and catalog window paths. `READY` for Codex, ahead of 012.
+**Spec 014 (fix: trim/catalog windows can get permanently stuck invisible after a failed show) jumped the queue on 2026-07-28**, same reasoning as spec 006, and is now `DONE`. Root cause was two-fold: a WPF binding on `TrimWindow.xaml`'s `StemProgressPercent` `ProgressBar` throwing on every render (fixed with an explicit `Mode=OneWay`), plus a structural defect in `App.xaml.cs` assigning `_trimWindow`/`_catalogWindow` before `Show()` ran with no reset on failure, permanently wedging retries. Fixed via a shared `ManagedWindowSlot<TWindow>` lifecycle helper applied to the trim, catalog, and import-window paths, with regression tests and live-hotkey verification. Re-verified again 2026-07-29 after the owner hit a real-world hotkey failure (caused by no Hookline process running at the time, not a regression) — rebuilt, relaunched, and reconfirmed working.
 
 ## Phase 1 — "It just works" (this is the MVP, specs 001–004)
 
@@ -74,6 +82,7 @@ Bigger ideas from the original brainstorm, kept but not committed to:
 - Pitch/note visualization — only relevant if there's ever an actual editing use case, not just clip-saving.
 - Support for other now-playing sources (YouTube Music, local media players) — the now-playing watcher (spec 001) should be designed with this in mind (an interface, not a Spotify-only hardcode) even though only Spotify ships in Phase 1.
 - Chorus/"best part" auto-detection to suggest a trim range instead of you finding it manually.
+- ~~Paste-a-URL fetch + convert~~ — surfaced 2026-07-30, owner decided the same day to build it. See spec 018 (and spec 017 for the narrower "already-on-disk file" version of this same itch). No longer a backlog maybe — moved up to specced/`READY` above.
 
 ## Naming
 

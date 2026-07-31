@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Hookline.Audio.Tests;
@@ -150,6 +151,77 @@ public sealed class LocalAudioFileImporterTests : IDisposable
         Assert.Equal(
             LocalAudioImportFailure.DecodeFailed,
             corrupt.Failure
+        );
+    }
+
+    [Theory]
+    [InlineData(".mp4")]
+    [InlineData(".mkv")]
+    [InlineData(".webm")]
+    public async Task VideoContainerExtensionsReachTheDecoder(
+        string extension
+    )
+    {
+        var sourcePath = Path.Combine(
+            _temporaryDirectory,
+            $"corrupt-video{extension}"
+        );
+        await File.WriteAllBytesAsync(
+            sourcePath,
+            "not media"u8.ToArray()
+        );
+
+        var exception = await Assert.ThrowsAsync<
+            LocalAudioImportException
+        >(
+            () =>
+                new LocalAudioFileImporter()
+                    .ImportAsync(sourcePath)
+        );
+
+        Assert.Equal(
+            LocalAudioImportFailure.DecodeFailed,
+            exception.Failure
+        );
+        Assert.Equal(
+            AudioStrings.ImportDecodeFailed,
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public void MissingAudioStreamGetsTheSpecificNoAudioMessage()
+    {
+        var mediaFoundationFailure = new COMException(
+            "The stream number provided was invalid.",
+            unchecked((int)0xC00D36B3)
+        );
+
+        var exception =
+            LocalAudioImportErrorMapper.MapDecodeFailure(
+                mediaFoundationFailure
+            );
+
+        Assert.Equal(
+            LocalAudioImportFailure.DecodeFailed,
+            exception.Failure
+        );
+        Assert.Equal(
+            AudioStrings.ImportHasNoAudio,
+            exception.Message
+        );
+        Assert.Same(
+            mediaFoundationFailure,
+            exception.InnerException
+        );
+    }
+
+    [Fact]
+    public void MissingContainerArtistTagsUseTheExistingFallback()
+    {
+        Assert.Equal(
+            string.Empty,
+            LocalAudioFileImporter.JoinArtists(null)
         );
     }
 

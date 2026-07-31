@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [009, 010]
 ---
@@ -105,3 +105,5 @@ I've trimmed the clip I want to post. I tap "Slowed + Reverb" and it instantly g
 Everything else here is solid; this is a small, mechanical fix-or-verify, not a design problem. Please close this specific gap and flip back to REVIEW.
 
 **Resolution (2026-07-29)**: added an exporter-level regression test using the full-wet reverb impulse response. It verifies that the two-second tail contains real signal, has naturally fallen to at most 0.1% of peak by the final 15 ms fade, remains byte-identical before that fade, and reaches zero smoothly at the edge. Debug and isolated Release runs both pass all 133 tests. No fade widening was needed, so neutral exports retain the established 15 ms behavior.
+
+**Re-reviewed 2026-07-29**: confirmed `FullWetReverbDecaysBeforeExporterEdgeFade` (`Mp3ClipExporterTests.cs:8`) is a genuine regression test, not a tautology — it independently checks the tail has real signal past the source clip, decays below peak/10 before the fade window, stays near-silent (≤peak/1000) within the fade region, and leaves everything before that byte-identical. Independently ran `dotnet test` on Hookline.Audio.Tests in Release: 50/50 pass. Gap closed. All 10 acceptance criteria now verified. Status: DONE.

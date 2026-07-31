@@ -30,10 +30,10 @@ internal static class AudioStrings
         "MP3 export currently requires 16-bit PCM audio.";
 
     public const string ImportFileMissing =
-        "The selected audio file no longer exists.";
+        "The selected media file no longer exists.";
 
     public const string UnsupportedImportFormat =
-        "Hookline can import MP3, WAV, M4A, AAC, and WMA files.";
+        "Hookline can import MP3, WAV, M4A, AAC, WMA, MP4, MKV, and WebM files.";
 
     public const string ImportTooLong =
         "The selected audio is longer than the 30-minute import limit.";
@@ -45,7 +45,7 @@ internal static class AudioStrings
         "The selected file does not contain decodable audio.";
 
     public const string ImportDecodeFailed =
-        "Windows could not decode this audio file. It may be corrupt or use an unsupported codec.";
+        "Windows could not decode audio from this file. It may be corrupt or use an unsupported audio codec.";
 
     public const string UnsupportedEffectsFormat =
         "Clip effects currently require 16-bit PCM audio.";

@@ -4,3 +4,5 @@ obj/
 *.user
 *.suo
 autotest-*.wav
+scripts/agent-loop-logs/
+scripts/.agent-loop-state.json

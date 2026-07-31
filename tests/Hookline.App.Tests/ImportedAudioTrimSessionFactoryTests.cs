@@ -7,6 +7,14 @@ namespace Hookline.App.Tests;
 public sealed class ImportedAudioTrimSessionFactoryTests
 {
     [Fact]
+    public void FilePickerFilterIncludesSupportedVideoContainers()
+    {
+        Assert.Contains("*.mp4", AppStrings.AudioFileFilter);
+        Assert.Contains("*.mkv", AppStrings.AudioFileFilter);
+        Assert.Contains("*.webm", AppStrings.AudioFileFilter);
+    }
+
+    [Fact]
     public void ImportedAudioBecomesANormalUnselectedTrimSession()
     {
         var format = new PcmAudioFormat(44_100, 16, 2);

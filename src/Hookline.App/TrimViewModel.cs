@@ -22,6 +22,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     private TimeSpan? _selectionStart;
     private TimeSpan? _selectionEnd;
     private TimeSpan? _playhead;
+    private TimeSpan _activePreviewDuration;
     private SelectionEdge _activeEdge = SelectionEdge.End;
     private string _statusMessage = string.Empty;
     private EditEffectSelection _editEffectSelection =
@@ -858,7 +859,10 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         StartPreview();
     }
 
-    private void StartPreview()
+    private void StartPreview(
+        TimeSpan previousPosition = default,
+        TimeSpan previousDuration = default
+    )
     {
         try
         {
@@ -874,7 +878,13 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            _previewPlayer.Play(selection);
+            var resumeAt = PreviewResumePositionMapper.Map(
+                previousPosition,
+                previousDuration,
+                selection.Duration
+            );
+            _previewPlayer.Play(selection, resumeAt);
+            _activePreviewDuration = selection.Duration;
             OnPropertyChanged(nameof(IsPlaying));
             OnPropertyChanged(nameof(PreviewButtonText));
         }
@@ -1148,6 +1158,12 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     private void EffectsChanged(params string[] propertyNames)
     {
         var restartPreview = _previewPlayer.IsPlaying;
+        var previousPosition = restartPreview
+            ? _previewPlayer.CurrentAudioPosition
+            : TimeSpan.Zero;
+        var previousDuration = restartPreview
+            ? _activePreviewDuration
+            : TimeSpan.Zero;
         StopPreview();
         foreach (var propertyName in propertyNames)
         {
@@ -1157,7 +1173,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         StatusMessage = string.Empty;
         if (restartPreview)
         {
-            StartPreview();
+            StartPreview(previousPosition, previousDuration);
         }
     }
 
@@ -1168,6 +1184,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
             _previewPlayer.Stop();
         }
 
+        _activePreviewDuration = TimeSpan.Zero;
         Playhead = null;
         OnPropertyChanged(nameof(IsPlaying));
         OnPropertyChanged(nameof(PreviewButtonText));
@@ -1208,6 +1225,7 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnPreviewStopped(object? sender, EventArgs args)
     {
+        _activePreviewDuration = TimeSpan.Zero;
         Playhead = null;
         OnPropertyChanged(nameof(IsPlaying));
         OnPropertyChanged(nameof(PreviewButtonText));

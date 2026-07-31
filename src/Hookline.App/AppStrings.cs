@@ -21,7 +21,7 @@ public static class AppStrings
     public const string ChooseAudioFile =
         "Choose an audio file to trim";
     public const string AudioFileFilter =
-        "Audio files (*.mp3;*.wav;*.m4a;*.aac;*.wma)|*.mp3;*.wav;*.m4a;*.aac;*.wma|All files (*.*)|*.*";
+        "Audio and video files (*.mp3;*.wav;*.m4a;*.aac;*.wma;*.mp4;*.mkv;*.webm)|*.mp3;*.wav;*.m4a;*.aac;*.wma;*.mp4;*.mkv;*.webm|All files (*.*)|*.*";
     public const string ImportAlreadyRunning =
         "Hookline is already importing an audio file.";
     public const string ImportFailed =
