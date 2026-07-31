@@ -147,6 +147,7 @@
 
         <StackPanel Grid.Row="4" Margin="0,18,0,0">
             <ProgressBar
+                x:Name="DownloadProgressBar"
                 Height="6"
                 IsIndeterminate="{Binding IsResolving, Mode=OneWay}"
                 Maximum="100"

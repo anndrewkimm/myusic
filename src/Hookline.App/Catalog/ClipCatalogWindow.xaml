@@ -85,6 +85,35 @@
                     BorderBrush="#353D4B"
                     SelectedIndex="0"
                     SelectionChanged="OnSortChanged">
+                    <ComboBox.Resources>
+                        <SolidColorBrush
+                            x:Key="{x:Static SystemColors.WindowBrushKey}"
+                            Color="#242A36" />
+                        <SolidColorBrush
+                            x:Key="{x:Static SystemColors.WindowTextBrushKey}"
+                            Color="#F5F7FA" />
+                        <SolidColorBrush
+                            x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                            Color="#365E51" />
+                        <SolidColorBrush
+                            x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                            Color="#F5F7FA" />
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="Background" Value="#242A36" />
+                            <Setter
+                                Property="Foreground"
+                                Value="{StaticResource PrimaryTextBrush}" />
+                            <Style.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter Property="Background" Value="#365E51" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#216B53" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.Resources>
                     <ComboBoxItem
                         Content="{x:Static local:AppStrings.CatalogSortRecent}" />
                     <ComboBoxItem

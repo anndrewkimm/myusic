@@ -78,10 +78,8 @@ public sealed class ClipCatalogRepository
         {
             InitializeCore();
             using var connection = OpenConnection();
-            using var command = CreateInsertCommand(
-                connection,
-                entry
-            );
+            using var command = CreateInsertCommand(connection);
+            SetInsertValues(command, entry);
             command.ExecuteNonQuery();
         }
     }
@@ -100,13 +98,12 @@ public sealed class ClipCatalogRepository
             InitializeCore();
             using var connection = OpenConnection();
             using var transaction = connection.BeginTransaction();
+            using var command = CreateInsertCommand(connection);
+            command.Transaction = transaction;
+            command.Prepare();
             foreach (var entry in materialized)
             {
-                using var command = CreateInsertCommand(
-                    connection,
-                    entry
-                );
-                command.Transaction = transaction;
+                SetInsertValues(command, entry);
                 command.ExecuteNonQuery();
             }
 
@@ -403,8 +400,7 @@ public sealed class ClipCatalogRepository
     }
 
     private static SqliteCommand CreateInsertCommand(
-        SqliteConnection connection,
-        ClipCatalogEntry entry
+        SqliteConnection connection
     )
     {
         var command = connection.CreateCommand();
@@ -438,60 +434,51 @@ public sealed class ClipCatalogRepository
                 $albumArt
             );
             """;
-        command.Parameters.AddWithValue(
-            "$id",
-            entry.Id.ToString("D", CultureInfo.InvariantCulture)
+        command.Parameters.Add("$id", SqliteType.Text);
+        command.Parameters.Add("$displayTitle", SqliteType.Text);
+        command.Parameters.Add("$sourceTitle", SqliteType.Text);
+        command.Parameters.Add("$sourceArtist", SqliteType.Text);
+        command.Parameters.Add("$sourceAlbum", SqliteType.Text);
+        command.Parameters.Add("$exportedAtUtc", SqliteType.Text);
+        command.Parameters.Add("$filePath", SqliteType.Text);
+        command.Parameters.Add("$trimStartTicks", SqliteType.Integer);
+        command.Parameters.Add("$trimEndTicks", SqliteType.Integer);
+        command.Parameters.Add("$durationTicks", SqliteType.Integer);
+        command.Parameters.Add("$trackInstanceId", SqliteType.Integer);
+        command.Parameters.Add("$albumArt", SqliteType.Blob);
+        return command;
+    }
+
+    private static void SetInsertValues(
+        SqliteCommand command,
+        ClipCatalogEntry entry
+    )
+    {
+        command.Parameters["$id"].Value = entry.Id.ToString(
+            "D",
+            CultureInfo.InvariantCulture
         );
-        command.Parameters.AddWithValue(
-            "$displayTitle",
-            entry.DisplayTitle
-        );
-        command.Parameters.AddWithValue(
-            "$sourceTitle",
-            entry.SourceTitle
-        );
-        command.Parameters.AddWithValue(
-            "$sourceArtist",
-            entry.SourceArtist
-        );
-        command.Parameters.AddWithValue(
-            "$sourceAlbum",
-            entry.SourceAlbum
-        );
-        command.Parameters.AddWithValue(
-            "$exportedAtUtc",
-            entry.ExportedAt.ToUniversalTime().ToString(
-                "O",
-                CultureInfo.InvariantCulture
-            )
-        );
-        command.Parameters.AddWithValue(
-            "$filePath",
-            entry.FilePath
-        );
-        command.Parameters.AddWithValue(
-            "$trimStartTicks",
-            entry.TrimStart.Ticks
-        );
-        command.Parameters.AddWithValue(
-            "$trimEndTicks",
-            entry.TrimEnd.Ticks
-        );
-        command.Parameters.AddWithValue(
-            "$durationTicks",
-            entry.Duration.Ticks
-        );
-        command.Parameters.AddWithValue(
-            "$trackInstanceId",
-            entry.TrackInstanceId
-        );
-        command.Parameters.AddWithValue(
-            "$albumArt",
+        command.Parameters["$displayTitle"].Value =
+            entry.DisplayTitle;
+        command.Parameters["$sourceTitle"].Value = entry.SourceTitle;
+        command.Parameters["$sourceArtist"].Value = entry.SourceArtist;
+        command.Parameters["$sourceAlbum"].Value = entry.SourceAlbum;
+        command.Parameters["$exportedAtUtc"].Value = entry.ExportedAt
+            .ToUniversalTime()
+            .ToString("O", CultureInfo.InvariantCulture);
+        command.Parameters["$filePath"].Value = entry.FilePath;
+        command.Parameters["$trimStartTicks"].Value =
+            entry.TrimStart.Ticks;
+        command.Parameters["$trimEndTicks"].Value =
+            entry.TrimEnd.Ticks;
+        command.Parameters["$durationTicks"].Value =
+            entry.Duration.Ticks;
+        command.Parameters["$trackInstanceId"].Value =
+            entry.TrackInstanceId;
+        command.Parameters["$albumArt"].Value =
             entry.AlbumArt.Length == 0
                 ? DBNull.Value
-                : entry.AlbumArt
-        );
-        return command;
+                : entry.AlbumArt;
     }
 
     private static ClipCatalogEntry ReadEntry(SqliteDataReader reader) =>

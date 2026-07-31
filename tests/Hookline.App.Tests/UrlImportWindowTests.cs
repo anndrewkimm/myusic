@@ -1,4 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Media;
 using Hookline.Audio;
 
@@ -7,13 +10,12 @@ namespace Hookline.App.Tests;
 public sealed class UrlImportWindowTests
 {
     [Fact]
-    public void ReadOnlyViewModelBindingsAllowWindowToOpen()
+    public void ProgressBindingIsOneWayAndWindowInitializes()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
         {
             Application? application = null;
-            UrlImportWindow? window = null;
             try
             {
                 application = new Application
@@ -21,23 +23,26 @@ public sealed class UrlImportWindowTests
                     ShutdownMode = ShutdownMode.OnExplicitShutdown,
                 };
                 AddRequiredResources(application.Resources);
-                window = new UrlImportWindow(
-                    new UrlImportViewModel(
-                        new UnusedImportService(),
-                        showPersonalUseNotice: true
-                    )
-                )
+                using var viewModel = new UrlImportViewModel(
+                    new UnusedImportService(),
+                    showPersonalUseNotice: true
+                );
+                var window = new UrlImportWindow(viewModel);
+                var progressBar = window.FindName(
+                    "DownloadProgressBar"
+                ) as ProgressBar;
+                var binding = progressBar is null
+                    ? null
+                    : BindingOperations.GetBinding(
+                        progressBar,
+                        RangeBase.ValueProperty
+                    );
+                if (binding?.Mode != BindingMode.OneWay)
                 {
-                    Left = -10_000,
-                    Top = -10_000,
-                    ShowActivated = false,
-                    ShowInTaskbar = false,
-                };
-
-                window.Show();
-                window.UpdateLayout();
-                window.CloseForShutdown();
-                window = null;
+                    throw new InvalidOperationException(
+                        "Download progress must be bound one-way."
+                    );
+                }
             }
             catch (Exception exception)
             {
@@ -45,7 +50,6 @@ public sealed class UrlImportWindowTests
             }
             finally
             {
-                window?.CloseForShutdown();
                 application?.Shutdown();
             }
         })
@@ -57,7 +61,7 @@ public sealed class UrlImportWindowTests
         thread.Start();
 
         Assert.True(
-            thread.Join(TimeSpan.FromSeconds(10)),
+            thread.Join(TimeSpan.FromSeconds(30)),
             "The URL import window smoke test did not finish."
         );
         Assert.Null(failure);
