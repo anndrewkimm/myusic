@@ -1,5 +1,5 @@
 ---
-status: DRAFT
+status: READY
 touches: [Hookline.App]
 depends_on: [003, 004, 014, 018, 019, 022]
 ---
@@ -50,14 +50,14 @@ navigation *is* that switcher, generalized across every session type
 (captured tracks, imports, an in-progress mix), not just captured tracks.
 See "Relationship to spec 022" below.
 
-## Planner recommendations (need owner confirmation before this leaves DRAFT)
+## Resolved decisions (owner-confirmed 2026-07-31)
 
-Codex raised four real forks in its blocked review of spec 019. Recommending
-a default for each, but these are genuine product-shape decisions, not
-implementation details — flagging clearly rather than deciding silently:
+Codex raised four real forks in its blocked review of spec 019. Owner
+confirmed all four recommended defaults as-is rather than any narrower
+alternative — this section is no longer "recommended," it's resolved:
 
 1. **Mix view layout: one shared editor panel with an A/B source
-   selector, not two full panels side-by-side.** *Recommended.* The
+   selector, not two full panels side-by-side.** *Confirmed.* The
    existing single-source editor (EQ + stems + sound effects + presets) is
    already visually dense — literally shown filling the whole trim window
    in normal use. Two full copies side-by-side would either be cramped to
@@ -65,7 +65,7 @@ implementation details — flagging clearly rather than deciding silently:
    An A/B toggle also reuses the *exact* mechanism this spec needs anyway
    for switching between retained sessions (see below) — one switching
    component, two uses, instead of inventing a second one just for Mix.
-2. **No separate master/final effect stage after mixing.** *Recommended.*
+2. **No separate master/final effect stage after mixing.** *Confirmed.*
    The original spec 019 already resolved this implicitly: a mixed export
    is just a new source you can reopen and shape further like any other
    clip. Adding a third effect stage inside the Mix view itself would be
@@ -73,7 +73,7 @@ implementation details — flagging clearly rather than deciding silently:
    editing, not a new mixing-bus concept). Revisit only if real use shows
    people actually want it.
 3. **Tray right-click keeps direct-jump shortcuts to each view, in
-   addition to the shell existing.** *Recommended.* The shell is a
+   addition to the shell existing.** *Confirmed.* The shell is a
    discoverability/coherence upgrade, not a reason to slow down the
    one-click path power users already have today. Removing direct tray
    shortcuts would be a real regression for the "I know exactly what I
@@ -82,7 +82,7 @@ implementation details — flagging clearly rather than deciding silently:
    session (spec 019's own duration policy, spec 022's hotkey behavior).
 4. **Session model: one active editor plus an in-shell switcher,
    preserving every session — aligned with spec 022, not a different
-   arrangement.** *Recommended.* Reuses spec 022's already-designed
+   arrangement.** *Confirmed.* Reuses spec 022's already-designed
    retention/eviction policy rather than inventing a second session model.
    Also keeps the single-managed-window discipline spec 014 had to fix a
    real bug to establish, generalized to "one shell window" instead of
@@ -132,6 +132,38 @@ not what they do.
 
 ## Acceptance criteria
 
-To be finalized once the four planner recommendations above are confirmed
-or corrected by the owner — deliberately not writing final criteria
-against recommendations that might change.
+- [ ] `Ctrl+Alt+H` (and the tray icon's left-click/default action) opens
+      one persistent shell window with views for Capture/Trim, Import
+      (local file + URL, spec 018/021), Mix (spec 019), and Library
+      (spec 004) — not separate independent windows per action.
+- [ ] Navigating between shell views preserves in-progress work in each
+      (effect settings being tuned, a running slow operation) — switching
+      away and back never silently discards or cancels anything.
+- [ ] The five existing independent window-management structures in
+      `App.xaml.cs` (`_trimWindowSlot`, `_catalogWindowSlot`,
+      `_urlImportWindowSlot`, `_mixWindowSlot`, `_importWindowSlots`) and
+      `ClipRetrimLauncher`'s separate dictionary are consolidated into the
+      shell's own session/navigation state — not left running in parallel
+      alongside it.
+- [ ] Spec 014's guarantee (no permanently-stuck-invisible window after a
+      failed show) holds under the new single-shell model — regression
+      tested, not just assumed to carry over.
+- [ ] The Mix view hosts one shared full editor (EQ, effects, stems — full
+      parity with the normal capture/trim editor) with an A/B source
+      toggle, applied independently per source before mixing — not a
+      volume-only control, and not two full editor panels side-by-side.
+- [ ] No new master/final effect stage exists after mixing; a mixed export
+      remains reopenable afterward as its own independent source for
+      further shaping, same as today.
+- [ ] Tray right-click still exposes direct-jump shortcuts to each view
+      (Capture, Import, Mix, Library) alongside the shell — the one-click
+      path is not removed or made shell-only.
+- [ ] Session switching inside the shell follows spec 022's model exactly:
+      one active editor, every retained session reachable and resumable,
+      nothing lost when switching. Spec 022's retention/eviction policy
+      itself is reused unchanged, not reimplemented.
+- [ ] `plans/019-mix-two-clips.md` is rewritten against the now-real shell
+      APIs/components (not speculatively before they exist) once this
+      spec ships, reusing its already-shipped `TwoSourceAudioMixer` DSP
+      core unchanged — only the window/UI layer around it changes.
+- [ ] All edge cases above are handled explicitly, not silently ignored.

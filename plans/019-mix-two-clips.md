@@ -225,13 +225,17 @@ decisions and acceptance criteria around the unified-workspace model.
 
 This feedback is bigger than this spec — it's a real application-shell
 redesign touching every window in Hookline, not just Mix. Split out into
-`plans/023-unified-app-shell.md` (`DRAFT`, pending owner confirmation on
-four real sub-decisions) rather than answered inline here, so the shell
-architecture gets planned as itself instead of as a side effect of fixing
-Mix. This spec stays `BLOCKED` until 023 is resolved; once it is, this
-spec's "Resolved implementation decisions" get rewritten against whatever
-shell model 023 settles on (per-source full editor via 023's shared
-panel + A/B selector, not the current volume-only window), and the
+`plans/023-unified-app-shell.md` rather than answered inline here, so the
+shell architecture gets planned as itself instead of as a side effect of
+fixing Mix. Owner confirmed 023's scope and all four of its sub-decisions
+the same day — it's now `READY` for Codex to implement next.
+
+This spec (019) stays `BLOCKED` until 023 actually ships, not just until
+023 is decided — rewriting this spec's "Resolved implementation decisions"
+against 023's shell APIs before they exist in code would mean designing
+against an imagined interface. Once 023 is `DONE`, rewrite this spec's Mix
+window design against the real shell (per-source full editor via 023's
+shared panel + A/B selector, not the current volume-only window). The
 already-shipped `TwoSourceAudioMixer` DSP core (longer-source-sets-length,
-shorter-loops, same-source-allowed) carries forward unchanged — only the
-window/UI layer around it needs replacing.
+shorter-loops, same-source-allowed) carries forward unchanged regardless
+— only the window/UI layer around it gets replaced.
