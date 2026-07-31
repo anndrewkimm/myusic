@@ -86,6 +86,14 @@ this is not a place to be loose.
   the existing trim window (not a new separate window) showing every
   currently-retained track; picking one swaps the window's content to
   that track's own independent session state from the point above.
+  **Superseded if `plans/023-unified-app-shell.md` ships**: that spec
+  (drafted 2026-07-31, from direct owner feedback after trying spec 019)
+  proposes a shell-wide navigation/switcher generalizing this same idea
+  across every session type, not just captured tracks — if adopted, this
+  bullet becomes "reachable via the shell's navigation" instead of its
+  own bespoke widget. The retention/eviction *policy* below is unaffected
+  either way — that's backend logic, not UI. If 023 is not adopted, this
+  bullet stands exactly as written.
 - **"Capture a moment" always takes you to what's currently playing.**
   Note this targets the `ShowTrimWindow()` action itself, not the raw
   `Ctrl+Alt+H` keypress — spec 018's second-pass fix (shipped the same day

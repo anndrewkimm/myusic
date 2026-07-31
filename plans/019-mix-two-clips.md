@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: BLOCKED
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 004, 008, 009]
 ---
@@ -186,3 +186,52 @@ No deviations or known gaps within the acceptance criteria.
 - Profile and plan the reported effect-control/preview latency separately,
   including stem-model warmup and clearer in-progress feedback for stem
   isolation. Stem separation itself is intentionally outside this spec.
+
+## Open questions (owner review feedback, 2026-07-31)
+
+The owner rejected two central decisions in this revision after trying the
+shipped workflow, so the spec cannot move from review to done as written:
+
+- `Ctrl+Alt+H` should open one real Hookline workspace, not a six-item tray
+  action menu. Capture, file/URL import, mixing, and the clip library should
+  be views or tabs inside that single consistent application shell, with
+  navigation preserving work instead of spawning separate task windows.
+- Mixing must expose the same editing tools as the normal capture editor
+  independently for each source (including EQ/bass, effects, and stems), so
+  source A and source B can be shaped differently before they are combined.
+  The current volume-only mix window and this spec's explicit exclusion of
+  combined mix+effects UI do not satisfy that requirement.
+
+Planner decisions still required before Codex can safely replace the
+current implementation:
+
+1. In the Mix view, should the complete editor be one shared panel with an
+   A/B source selector (keeps the window compact), or two complete editor
+   panels visible side-by-side (faster comparison but much denser)?
+2. After the independently-processed sources are mixed, is there also a
+   third master/final effect stage, or only the two per-source effect stacks?
+3. Should tray right-click retain shortcuts that navigate directly to the
+   corresponding workspace view, or should the tray expose only Open and
+   Exit while every action lives exclusively inside the workspace?
+4. Define the single-window session rule when several imports or retained
+   tracks exist: one active editor with a switcher that preserves every
+   session (aligned with spec 022), or a different in-shell arrangement.
+
+This is review feedback on the active spec, not permission to start specs
+020-022. Status is `BLOCKED` until the planner rewrites the resolved
+decisions and acceptance criteria around the unified-workspace model.
+
+## Planner note (2026-07-31)
+
+This feedback is bigger than this spec — it's a real application-shell
+redesign touching every window in Hookline, not just Mix. Split out into
+`plans/023-unified-app-shell.md` (`DRAFT`, pending owner confirmation on
+four real sub-decisions) rather than answered inline here, so the shell
+architecture gets planned as itself instead of as a side effect of fixing
+Mix. This spec stays `BLOCKED` until 023 is resolved; once it is, this
+spec's "Resolved implementation decisions" get rewritten against whatever
+shell model 023 settles on (per-source full editor via 023's shared
+panel + A/B selector, not the current volume-only window), and the
+already-shipped `TwoSourceAudioMixer` DSP core (longer-source-sets-length,
+shorter-loops, same-source-allowed) carries forward unchanged — only the
+window/UI layer around it needs replacing.
