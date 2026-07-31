@@ -65,31 +65,45 @@ remix, a lyric video with different content, etc.).
   file (added to the user's own library from disk) does not have a
   resolvable `open.spotify.com` web link at all, so it naturally falls out
   as "not a valid track link" rather than needing special-case handling.
-- **Metadata source: Spotify's public oEmbed endpoint first** (no
-  authentication, no setup step — `open.spotify.com/oembed?url=...`),
-  giving the "paste a link and it just works" experience by default.
-  **Verify its current response shape at implementation time** — if it
-  reliably separates artist from track title, use it as-is; if it doesn't
-  (or drops artist entirely), fall back to the official Web API's Client
-  Credentials flow (app-only auth, no user login, free to register) for
-  richer, more reliable metadata including exact duration. If that fallback
-  path is needed, the user provides their own free Spotify Developer Client
-  ID/Secret once via a settings entry, stored locally under
-  `%LOCALAPPDATA%\Hookline\` — **never a credential bundled or committed in
-  the repo**, since this repo may be published to GitHub (per
-  `docs/CONVENTIONS.md`) and a shared bundled secret would be both a
-  leak risk and a shared rate-limit target across every install. Whichever
-  path is actually active must be clear from the code (no silent fallback
-  substitution), same discipline as the WASAPI-loopback fallback already
-  documented in `docs/CONVENTIONS.md`.
-- **YouTube search + match ranking** reuses whatever extraction library
-  spec 018 ends up using (its own search capability if it has one, or an
-  equivalent search call) rather than adding a second library. Rank
+- **Metadata source: the official Web API's Client Credentials flow is the
+  primary and only path — not a fallback.** This reverses this spec's
+  original draft, which proposed oEmbed-by-default for a zero-setup
+  experience. Checked directly against a live request during planning
+  (`open.spotify.com/oembed?url=...` for a real track) rather than assumed:
+  the response contains **no artist field at all** — `title` is the bare
+  track name only (e.g. `"title": "Shape of You"`, nothing else
+  identifying the artist, not even inside the embed HTML). Searching
+  YouTube on a bare title with no artist produces meaningfully worse,
+  more ambiguous matches — exactly the failure mode this spec's mandatory
+  confirmation screen exists to catch, but a bad search means the *right*
+  video may not even appear in the candidates to confirm. Since this
+  spec's entire premise is correctly identifying the right recording,
+  accuracy wins over zero-setup convenience here.
+  The user provides their own free Spotify Developer Client ID/Secret once
+  via a settings entry (app-only Client Credentials auth, no Spotify login,
+  ~2-minute one-time registration at developer.spotify.com), stored locally
+  under `%LOCALAPPDATA%\Hookline\` — **never a credential bundled or
+  committed in the repo**, since this repo may be published to GitHub (per
+  `docs/CONVENTIONS.md`) and a shared bundled secret would be both a leak
+  risk and a shared rate-limit target across every install. This also gets
+  exact track duration (not available from oEmbed either), which is the
+  strongest signal for ranking YouTube candidates. If no credentials are
+  configured yet, the dialog says so plainly and points at the one-time
+  setup step rather than silently degrading to a worse title-only search —
+  no silent fallback substitution, same discipline as the WASAPI-loopback
+  fallback already documented in `docs/CONVENTIONS.md`.
+- **YouTube search + match ranking** reuses spec 018's YoutubeExplode 6.6.0
+  (confirmed as what 018 actually shipped with — no fallback to yt-dlp was
+  needed there, so there's no ambiguity to resolve here either) rather than
+  adding a second library. YoutubeExplode exposes a search API
+  (`SearchClient`); verify its current signature against the installed
+  version at implementation time, same "don't assume, check" discipline
+  spec 018 already used for the rest of the library's surface. Rank
   candidates by title/artist text similarity, and by closeness to the
-  Spotify track's duration when duration is available from the metadata
-  source in use — a strong signal, since a real official upload's length
-  closely matches the track length while a remix/lyric-compilation/full-
-  album video typically won't.
+  Spotify track's exact duration (available from the Web API metadata this
+  spec now requires) — a strong signal, since a real official upload's
+  length closely matches the track length while a remix/lyric-compilation/
+  full-album video typically won't.
 - **Confirmation shows more than one candidate when the match is
   ambiguous.** If the top-ranked result isn't a clear, confident best match
   (implementer's call on the exact confidence threshold — verify against
@@ -121,12 +135,15 @@ remix, a lyric video with different content, etc.).
 - Multiple plausible YouTube matches (covers, remixes, live versions, lyric
   videos) — user is shown a short list to pick from, never a silent
   best-guess auto-download.
-- oEmbed (or the Web API fallback) is down, rate-limited, or returns an
-  unexpected shape — clear error, never an unhandled exception reaching the
-  UI thread, per `docs/CONVENTIONS.md`'s background-operation rule.
-- Web API fallback path active with an invalid or revoked Client ID/Secret
-  — clear, specific error pointing at the credential, distinct from a
-  track-not-found error, so the user knows what to fix.
+- No Spotify Client ID/Secret configured yet — clear message pointing at
+  the one-time settings setup, distinct from any other error; never a
+  silent degrade to a worse title-only lookup.
+- Web API is down, rate-limited, or returns an unexpected shape — clear
+  error, never an unhandled exception reaching the UI thread, per
+  `docs/CONVENTIONS.md`'s background-operation rule.
+- Invalid or revoked Client ID/Secret — clear, specific error pointing at
+  the credential, distinct from a track-not-found error, so the user knows
+  what to fix.
 - Web API Client Credentials token expiring mid-session — transparent
   refresh; never a user-visible error under normal use.
 - Everything downstream of a confirmed match — download progress/cancel,
@@ -152,9 +169,9 @@ remix, a lyric video with different content, etc.).
       clear, specific, non-crashing error — distinct messages for each
       failure point (bad link, unavailable track, no match found, lookup
       service error).
-- [ ] If the Web API fallback path is used, invalid/revoked credentials
-      produce an error distinct from "track not found," and no Spotify
-      Client ID/Secret is ever bundled or committed in the repo.
+- [ ] Missing or invalid/revoked Spotify Client ID/Secret each produce a
+      distinct, specific error (not conflated with "track not found"), and
+      no credential is ever bundled or committed in the repo.
 - [ ] New Spotify-link-parsing and match-ranking logic lives in
       `Hookline.Audio`, is UI-agnostic, and has unit test coverage
       independent of real network access (fake/stubbed metadata and search
@@ -165,8 +182,9 @@ remix, a lyric video with different content, etc.).
 ## Sequencing note
 
 This spec hands its resolved video URL directly to spec 018's fetch
-pipeline, so it cannot actually be implemented before spec 018 is `DONE` —
-marked `READY` here so it's queued and fully specified, but Codex should
-finish 018 first (consistent with `CLAUDE.md`'s "only one spec
-`IN_PROGRESS` at a time" rule; the `depends_on` field above reflects the
-real ordering constraint, not just documentation).
+pipeline. Spec 018 shipped and is `DONE` as of 2026-07-31 (including a
+second-pass fix that changed how the trim window is invoked — see its
+"Review notes" — none of which affects this spec, since this hands off to
+`UrlAudioImportService`/the fetch pipeline itself, not to how that pipeline
+gets triggered). No remaining sequencing blocker; this is genuinely ready
+for Codex to pick up whenever it's next in line.

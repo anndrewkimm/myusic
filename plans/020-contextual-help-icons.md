@@ -38,6 +38,13 @@ optional, ignorable source of explanation next to what's already there.
   implementing this would require moving or resizing any existing control
   to make room, that's a signal the icon placement was wrong, not a reason
   to touch the control itself.
+- **Two controls already carry a different `AutomationProperties.HelpText`**
+  today — the 8D rotation slider (`AppStrings.HeadphonesHint`) and the stem
+  Band-view avatars (`AppStrings.StemBandHint`). "Purely additive" above
+  means *visible layout/behavior* is unchanged; these two controls'
+  `HelpText` value specifically is intended to be replaced by this spec's
+  copy (screen readers only get one `HelpText` string per element, so this
+  isn't optional), not left as a second, conflicting value alongside it.
 - **Forward-compatible with spec 015** (per-segment effects): since spec 015
   reuses the exact same effect controls scoped to a segment instead of the
   whole selection, these help icons apply automatically to the same

@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [008, 017]
 ---
@@ -253,3 +253,18 @@ clean, flipped to DONE.
 - Live-smoked the complete URL path against a public 3:33 YouTube video:
   metadata resolution, M4A download, Media Foundation decode, metadata
   handoff, waveform snapshot, and temporary-file cleanup all succeeded.
+
+## Review notes (2026-07-31, second pass)
+
+Re-reviewed after the owner's two direct bug reports were fixed. Both
+fixes verified against the actual diff (commit on top of `a1f9d0c`), not
+just the notes above: the `ProgressPercent` crash was a real WPF
+`RangeBase.Value` two-way-binds-by-default footgun against a read-only
+property, now explicitly `Mode=OneWay`; the hotkey change reroutes
+`Ctrl+Alt+H` through the existing tray context menu rather than adding any
+new keybinding/config surface — confirmed no scope creep into a bigger
+hotkey-remapping feature. New `UrlImportWindowTests.cs` is a genuine
+STA/WPF regression test, exactly the kind that would have caught the
+original crash. **172/172 tests pass in both Debug and Release** — the
+DLL-lock issue that blocked Debug verification twice earlier today did
+not recur this run. Clean. Flipped to `DONE`.

@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: DONE
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 009, 010, 011, 012, 013, 016]
 ---
@@ -299,3 +299,14 @@ Back to `IN_PROGRESS` for item 1 (a real fix) and re-verification of item 2.
   `EditEffectSelection.ReverbWetMix`: both manual changes and presets are
   normalized when they create that immutable selection, so render behavior
   does not depend on the rounded display-only percentage getter.
+
+## Review notes (2026-07-31, second pass)
+
+Both items from the first review verified resolved, not just claimed:
+`ClipFadeSettings.Duration` (`src/Hookline.Audio/ClipFadeSettings.cs:3-6`)
+is now the single source of truth, consumed by both `Mp3ClipExporter.cs:134`
+and `SegmentedClipRenderer.cs:162` — grepped the repo to confirm the two old
+duplicated field names are gone entirely, not just aliased. Re-ran the full
+suite myself with no Hookline instance running: **172/172 in both Debug and
+Release**, 0 warnings either configuration. Diff scope is surgical — 4 files,
+24/−8 lines, nothing beyond the two flagged items. Clean. Flipped to `DONE`.
