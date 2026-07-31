@@ -118,4 +118,13 @@ internal static class AudioStrings
 
     public const string SegmentedOutputTooLarge =
         "The combined segment effects produce too much audio to render.";
+
+    public const string MixSourceEmpty =
+        "Choose two clips with audio before mixing.";
+
+    public const string MixFormatMismatch =
+        "Both mix sources must use the same audio format.";
+
+    public const string MixedOutputTooLong =
+        "A mixed clip cannot be longer than 5 minutes. Trim one of the sources and try again.";
 }

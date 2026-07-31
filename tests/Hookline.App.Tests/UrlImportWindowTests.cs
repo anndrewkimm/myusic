@@ -3,6 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.IO;
+using Hookline.App.Catalog;
+using Hookline.App.Mixing;
 using Hookline.Audio;
 
 namespace Hookline.App.Tests;
@@ -43,6 +46,8 @@ public sealed class UrlImportWindowTests
                         "Download progress must be bound one-way."
                     );
                 }
+
+                ConstructMixWindow();
             }
             catch (Exception exception)
             {
@@ -82,6 +87,39 @@ public sealed class UrlImportWindowTests
     private static SolidColorBrush Brush(string value) =>
         new((Color)ColorConverter.ConvertFromString(value));
 
+    private static void ConstructMixWindow()
+    {
+        var temporaryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hookline-mix-window-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(temporaryDirectory);
+        try
+        {
+            var catalog = new ClipCatalogService(
+                new ClipCatalogRepository(
+                    Path.Combine(temporaryDirectory, "clips.db")
+                )
+            );
+            var settings = new OutputFolderSettings(
+                Path.Combine(temporaryDirectory, "settings.json"),
+                new NoSpotifySourceDetector(),
+                Path.Combine(temporaryDirectory, "exports")
+            );
+            using var viewModel = new MixWindowViewModel(
+                catalog,
+                new LocalAudioFileImporter(),
+                new UnusedExporter(),
+                settings
+            );
+            _ = new MixWindow(viewModel);
+        }
+        finally
+        {
+            Directory.Delete(temporaryDirectory, recursive: true);
+        }
+    }
+
     private sealed class UnusedImportService :
         IUrlAudioImportService
     {
@@ -95,5 +133,21 @@ public sealed class UrlImportWindowTests
             IProgress<double>? progress = null,
             CancellationToken cancellationToken = default
         ) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedExporter : IClipExporter
+    {
+        public Task<ClipExportResult> ExportAsync(
+            AudioBufferSnapshot selection,
+            ClipExportMetadata metadata,
+            string outputFolder,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
+    }
+
+    private sealed class NoSpotifySourceDetector :
+        ISpotifyLocalFilesSourceDetector
+    {
+        public string? DetectSourceFolder() => null;
     }
 }

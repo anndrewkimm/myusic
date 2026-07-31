@@ -11,14 +11,17 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
     private readonly IClipExporter _exporter;
     private readonly OutputFolderSettings _outputSettings;
     private readonly IStemIsolationService _stemIsolationService;
+    private readonly LocalAudioFileImporter _importer;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<Guid, TrimWindow> _windows = [];
+    private readonly HashSet<Guid> _opening = [];
 
     public ClipRetrimLauncher(
         HooklineAudioCaptureService captureService,
         IClipExporter exporter,
         OutputFolderSettings outputSettings,
         IStemIsolationService stemIsolationService,
+        LocalAudioFileImporter importer,
         Dispatcher dispatcher
     )
     {
@@ -40,6 +43,9 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
             ?? throw new ArgumentNullException(
                 nameof(stemIsolationService)
             );
+        _importer =
+            importer
+            ?? throw new ArgumentNullException(nameof(importer));
         _dispatcher =
             dispatcher
             ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -52,12 +58,12 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
     {
         ArgumentNullException.ThrowIfNull(entry);
         return _dispatcher.CheckAccess()
-            ? Task.FromResult(OpenCore(entry, cancellationToken))
+            ? OpenCoreAsync(entry, cancellationToken)
             : _dispatcher
                 .InvokeAsync(
-                    () => OpenCore(entry, cancellationToken)
+                    () => OpenCoreAsync(entry, cancellationToken)
                 )
-                .Task;
+                .Task.Unwrap();
     }
 
     public void CloseAll()
@@ -70,7 +76,7 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
         _windows.Clear();
     }
 
-    private ClipRetrimResult OpenCore(
+    private async Task<ClipRetrimResult> OpenCoreAsync(
         ClipCatalogEntry entry,
         CancellationToken cancellationToken
     )
@@ -87,15 +93,66 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
             return ClipRetrimResult.Opened;
         }
 
-        var snapshot = _captureService.Query(
-            entry.TrackInstanceId
-        );
-        if (!ClipRetrimAvailability.IsAvailable(entry, snapshot))
+        if (!_opening.Add(entry.Id))
         {
-            return ClipRetrimResult.BufferUnavailable;
+            return ClipRetrimResult.Opened;
         }
 
-        var session = new TrimSession
+        try
+        {
+            var snapshot = _captureService.Query(
+                entry.TrackInstanceId
+            );
+            TrimSession session;
+            if (ClipRetrimAvailability.IsAvailable(entry, snapshot))
+            {
+                session = CreateLiveSession(entry, snapshot);
+            }
+            else if (
+                entry.TrackInstanceId
+                    == TwoSourceAudioMixer.MixedTrackInstanceId
+            )
+            {
+                var imported = await _importer.ImportAsync(
+                    entry.FilePath,
+                    cancellationToken
+                );
+                session = ImportedAudioTrimSessionFactory.Create(
+                    imported
+                );
+            }
+            else
+            {
+                return ClipRetrimResult.BufferUnavailable;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var preview = new AudioPreviewPlayer(_dispatcher);
+            var viewModel = new TrimViewModel(
+                session,
+                _exporter,
+                preview,
+                _outputSettings,
+                _stemIsolationService
+            );
+            var window = new TrimWindow(viewModel);
+            _windows.Add(entry.Id, window);
+            window.Closed += (_, _) => _windows.Remove(entry.Id);
+            window.Show();
+            window.Activate();
+            return ClipRetrimResult.Opened;
+        }
+        finally
+        {
+            _opening.Remove(entry.Id);
+        }
+    }
+
+    private static TrimSession CreateLiveSession(
+        ClipCatalogEntry entry,
+        AudioBufferSnapshot snapshot
+    ) =>
+        new()
         {
             Track = new NowPlayingTrack
             {
@@ -110,19 +167,4 @@ public sealed class ClipRetrimLauncher : IClipRetrimLauncher
             InitialSelectionStart = entry.TrimStart,
             InitialSelectionEnd = entry.TrimEnd,
         };
-        var preview = new AudioPreviewPlayer(_dispatcher);
-        var viewModel = new TrimViewModel(
-            session,
-            _exporter,
-            preview,
-            _outputSettings,
-            _stemIsolationService
-        );
-        var window = new TrimWindow(viewModel);
-        _windows.Add(entry.Id, window);
-        window.Closed += (_, _) => _windows.Remove(entry.Id);
-        window.Show();
-        window.Activate();
-        return ClipRetrimResult.Opened;
-    }
 }

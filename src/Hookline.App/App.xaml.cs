@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using Hookline.App.Catalog;
+using Hookline.App.Mixing;
 using Hookline.Audio;
 using Hookline.NowPlaying;
 using FileOpenDialog = Microsoft.Win32.OpenFileDialog;
@@ -30,6 +31,8 @@ public partial class App : System.Windows.Application
         _catalogWindowSlot = new();
     private readonly ManagedWindowSlot<UrlImportWindow>
         _urlImportWindowSlot = new();
+    private readonly ManagedWindowSlot<MixWindow> _mixWindowSlot =
+        new();
     private readonly Dictionary<
         long,
         ManagedWindowSlot<TrimWindow>
@@ -53,6 +56,7 @@ public partial class App : System.Windows.Application
             ShowTrimWindow,
             ImportAudioFile,
             ShowUrlImportWindow,
+            ShowMixWindow,
             ShowCatalogWindow,
             ExitApplication
         );
@@ -80,6 +84,7 @@ public partial class App : System.Windows.Application
             _exporter,
             _outputSettings,
             _stemIsolationService,
+            _localAudioFileImporter,
             Dispatcher
         );
 
@@ -558,6 +563,70 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private void ShowMixWindow()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(ShowMixWindow);
+            return;
+        }
+
+        if (_isExiting)
+        {
+            return;
+        }
+
+        if (
+            _mixWindowSlot.TryActivateExisting(
+                IsWindowUsable,
+                RestoreAndActivateWindow,
+                CloseWindow
+            )
+        )
+        {
+            return;
+        }
+
+        if (
+            _catalogService is null
+            || _localAudioFileImporter is null
+            || _exporter is null
+            || _outputSettings is null
+        )
+        {
+            _trayIcon?.ShowError(AppStrings.CatalogUnavailable);
+            return;
+        }
+
+        try
+        {
+            _mixWindowSlot.TryShowNew(
+                () =>
+                    new MixWindow(
+                        new MixWindowViewModel(
+                            _catalogService,
+                            _localAudioFileImporter,
+                            _exporter,
+                            _outputSettings
+                        )
+                    ),
+                SubscribeWindowClosed,
+                ShowAndActivateWindow,
+                CloseWindow
+            );
+        }
+        catch (Exception exception)
+        {
+            _trayIcon?.ShowError(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    AppStrings.MixOpenFailed,
+                    exception.Message
+                )
+            );
+        }
+    }
+
     private async void ExitApplication()
     {
         if (!Dispatcher.CheckAccess())
@@ -575,6 +644,7 @@ public partial class App : System.Windows.Application
         _startupCancellation.Cancel();
         _trimWindowSlot.CloseCurrent(CloseWindow);
         _catalogWindowSlot.CloseCurrent(CloseWindow);
+        _mixWindowSlot.CloseCurrent(CloseWindow);
         _urlImportWindowSlot.CloseCurrent(
             window => window.CloseForShutdown()
         );

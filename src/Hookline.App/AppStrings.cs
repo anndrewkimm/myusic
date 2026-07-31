@@ -16,6 +16,7 @@ public static class AppStrings
     public const string TrayOpen = "Capture a moment";
     public const string TrayImport = "Import audio file...";
     public const string TrayImportFromUrl = "Import from URL...";
+    public const string TrayMix = "Mix two clips...";
     public const string TrayLibrary = "Open clip library";
     public const string TrayExit = "Exit Hookline";
     public const string TrayStatusTitle = "Hookline";
@@ -230,4 +231,32 @@ public static class AppStrings
         "The local clip catalog could not be opened: {0}";
     public const string CatalogTitleUpdated = "Clip renamed.";
     public const string CatalogDeleted = "Clip deleted.";
+    public const string MixWindowTitle =
+        "Hookline — mix two clips";
+    public const string MixHeading = "Mix two clips";
+    public const string MixSubtitle =
+        "Layer two finished clips or imported files, set their levels, then export one track.";
+    public const string MixFirstSource = "SOURCE A";
+    public const string MixSecondSource = "SOURCE B";
+    public const string MixCatalogSource = "Choose from your clips";
+    public const string MixImportSource = "Import file...";
+    public const string MixNoSource = "No source selected";
+    public const string MixVolume = "Volume";
+    public const string MixExportDetails = "EXPORT DETAILS";
+    public const string MixTitle = "Title";
+    public const string MixArtist = "Artist";
+    public const string MixOutputFolder = "Saves to";
+    public const string MixExport = "Export mixed MP3";
+    public const string MixExporting = "Mixing and exporting…";
+    public const string MixChooseTwoSources =
+        "Choose both source clips before exporting.";
+    public const string MixCatalogEmpty =
+        "Your clip catalog is empty. Import a file for either source, or export a clip first.";
+    public const string MixCatalogLoadFailed =
+        "The clip list could not be loaded: {0}";
+    public const string MixLoadingSource = "Loading source audio…";
+    public const string MixSourceLoadFailed =
+        "That source could not be loaded: {0}";
+    public const string MixOpenFailed =
+        "The mix window could not be opened: {0}";
 }

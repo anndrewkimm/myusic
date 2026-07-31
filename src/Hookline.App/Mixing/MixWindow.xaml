@@ -1,0 +1,324 @@
+<Window
+    x:Class="Hookline.App.Mixing.MixWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Hookline.App"
+    Title="{x:Static local:AppStrings.MixWindowTitle}"
+    Width="880"
+    Height="690"
+    MinWidth="760"
+    MinHeight="620"
+    WindowStartupLocation="CenterScreen"
+    WindowStyle="None"
+    Background="{StaticResource WindowBackgroundBrush}"
+    Loaded="OnLoaded"
+    PreviewKeyDown="OnWindowPreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="MixTextBox" TargetType="TextBox">
+            <Setter Property="Padding" Value="9,7" />
+            <Setter Property="Background" Value="#0F131A" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="#353D4B" />
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryTextBrush}" />
+        </Style>
+        <Style x:Key="MixComboBox" TargetType="ComboBox">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Background" Value="#242A36" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="#353D4B" />
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="8,7" />
+            <Setter Property="Background" Value="#242A36" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="IsEnabled" Value="{Binding CanSelect}" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#365E51" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#216B53" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <SolidColorBrush
+            x:Key="{x:Static SystemColors.WindowBrushKey}"
+            Color="#242A36" />
+        <SolidColorBrush
+            x:Key="{x:Static SystemColors.WindowTextBrushKey}"
+            Color="#F5F7FA" />
+        <SolidColorBrush
+            x:Key="{x:Static SystemColors.HighlightBrushKey}"
+            Color="#365E51" />
+        <SolidColorBrush
+            x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+            Color="#F5F7FA" />
+    </Window.Resources>
+
+    <Border
+        BorderBrush="#343B48"
+        BorderThickness="1"
+        Background="{StaticResource WindowBackgroundBrush}">
+        <Grid Margin="26">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid
+                Grid.Row="0"
+                Margin="-6,-10,-6,20"
+                Background="Transparent"
+                MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
+                <StackPanel>
+                    <TextBlock
+                        FontFamily="Segoe UI Semibold"
+                        FontSize="25"
+                        Text="{x:Static local:AppStrings.MixHeading}" />
+                    <TextBlock
+                        Margin="0,5,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        Text="{x:Static local:AppStrings.MixSubtitle}" />
+                </StackPanel>
+                <Button
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Width="34"
+                    Height="30"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnCloseClick"
+                    Content="✕" />
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Grid.Column="0"
+                    Padding="18"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="#262D39"
+                    BorderThickness="1"
+                    CornerRadius="9">
+                    <StackPanel>
+                        <TextBlock
+                            FontFamily="Segoe UI Semibold"
+                            FontSize="10"
+                            Foreground="{StaticResource AccentBrush}"
+                            Text="{x:Static local:AppStrings.MixFirstSource}" />
+                        <TextBlock
+                            Margin="0,15,0,0"
+                            FontSize="10"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Text="{x:Static local:AppStrings.MixCatalogSource}" />
+                        <ComboBox
+                            Margin="0,6,0,0"
+                            Style="{StaticResource MixComboBox}"
+                            ItemsSource="{Binding CatalogSources}"
+                            DisplayMemberPath="Label"
+                            IsEnabled="{Binding CanChooseSources}"
+                            SelectionChanged="OnFirstCatalogSelectionChanged" />
+                        <Button
+                            Margin="0,10,0,0"
+                            IsEnabled="{Binding CanChooseSources}"
+                            Click="OnImportFirstClick"
+                            Content="{x:Static local:AppStrings.MixImportSource}" />
+                        <Border
+                            Margin="0,16,0,0"
+                            Padding="12"
+                            Background="#0F131A"
+                            CornerRadius="7">
+                            <StackPanel>
+                                <TextBlock
+                                    FontFamily="Segoe UI Semibold"
+                                    FontSize="15"
+                                    Text="{Binding FirstSourceTitle}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource MutedTextBrush}"
+                                    Text="{Binding FirstSourceDetail}" />
+                            </StackPanel>
+                        </Border>
+                        <DockPanel Margin="0,18,0,4">
+                            <TextBlock
+                                DockPanel.Dock="Left"
+                                FontSize="11"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="{x:Static local:AppStrings.MixVolume}" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Text="{Binding FirstVolumeText}" />
+                        </DockPanel>
+                        <Slider
+                            Minimum="0"
+                            Maximum="150"
+                            TickFrequency="5"
+                            IsEnabled="{Binding HasFirstSource}"
+                            Value="{Binding FirstVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="2"
+                    Padding="18"
+                    Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="#262D39"
+                    BorderThickness="1"
+                    CornerRadius="9">
+                    <StackPanel>
+                        <TextBlock
+                            FontFamily="Segoe UI Semibold"
+                            FontSize="10"
+                            Foreground="{StaticResource AccentBrush}"
+                            Text="{x:Static local:AppStrings.MixSecondSource}" />
+                        <TextBlock
+                            Margin="0,15,0,0"
+                            FontSize="10"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Text="{x:Static local:AppStrings.MixCatalogSource}" />
+                        <ComboBox
+                            Margin="0,6,0,0"
+                            Style="{StaticResource MixComboBox}"
+                            ItemsSource="{Binding CatalogSources}"
+                            DisplayMemberPath="Label"
+                            IsEnabled="{Binding CanChooseSources}"
+                            SelectionChanged="OnSecondCatalogSelectionChanged" />
+                        <Button
+                            Margin="0,10,0,0"
+                            IsEnabled="{Binding CanChooseSources}"
+                            Click="OnImportSecondClick"
+                            Content="{x:Static local:AppStrings.MixImportSource}" />
+                        <Border
+                            Margin="0,16,0,0"
+                            Padding="12"
+                            Background="#0F131A"
+                            CornerRadius="7">
+                            <StackPanel>
+                                <TextBlock
+                                    FontFamily="Segoe UI Semibold"
+                                    FontSize="15"
+                                    Text="{Binding SecondSourceTitle}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource MutedTextBrush}"
+                                    Text="{Binding SecondSourceDetail}" />
+                            </StackPanel>
+                        </Border>
+                        <DockPanel Margin="0,18,0,4">
+                            <TextBlock
+                                DockPanel.Dock="Left"
+                                FontSize="11"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="{x:Static local:AppStrings.MixVolume}" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Text="{Binding SecondVolumeText}" />
+                        </DockPanel>
+                        <Slider
+                            Minimum="0"
+                            Maximum="150"
+                            TickFrequency="5"
+                            IsEnabled="{Binding HasSecondSource}"
+                            Value="{Binding SecondVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border
+                Grid.Row="2"
+                Margin="0,18,0,0"
+                Padding="17"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="#262D39"
+                BorderThickness="1"
+                CornerRadius="9">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        Grid.ColumnSpan="3"
+                        FontFamily="Segoe UI Semibold"
+                        FontSize="10"
+                        Foreground="{StaticResource AccentBrush}"
+                        Text="{x:Static local:AppStrings.MixExportDetails}" />
+                    <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                        <TextBlock
+                            FontSize="10"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Text="{x:Static local:AppStrings.MixTitle}" />
+                        <TextBox
+                            Margin="0,5,0,0"
+                            Style="{StaticResource MixTextBox}"
+                            Text="{Binding ExportTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0">
+                        <TextBlock
+                            FontSize="10"
+                            Foreground="{StaticResource MutedTextBrush}"
+                            Text="{x:Static local:AppStrings.MixArtist}" />
+                        <TextBox
+                            Margin="0,5,0,0"
+                            Style="{StaticResource MixTextBox}"
+                            Text="{Binding ExportArtist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.ColumnSpan="3"
+                        Margin="0,12,0,0"
+                        FontSize="10"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        Text="{Binding OutputFolderText}"
+                        TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="3" Margin="0,17,0,0">
+                <TextBlock
+                    MaxWidth="560"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    FontSize="11"
+                    Foreground="{StaticResource MutedTextBrush}"
+                    Text="{Binding StatusMessage}"
+                    TextWrapping="Wrap" />
+                <Button
+                    HorizontalAlignment="Right"
+                    MinWidth="185"
+                    Background="#216B53"
+                    BorderBrush="{StaticResource AccentBrush}"
+                    IsEnabled="{Binding CanExport}"
+                    Click="OnExportClick"
+                    Content="{Binding ExportButtonText}" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

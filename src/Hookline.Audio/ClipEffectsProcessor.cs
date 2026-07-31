@@ -333,7 +333,7 @@ public static class ClipEffectsProcessor
         return output;
     }
 
-    private static byte[] AssembleLoops(
+    internal static byte[] AssembleLoops(
         ReadOnlySpan<byte> source,
         PcmAudioFormat format,
         int loopCount,
@@ -453,7 +453,7 @@ public static class ClipEffectsProcessor
         };
     }
 
-    private static int GetLoopCrossfadeFrameCount(
+    internal static int GetLoopCrossfadeFrameCount(
         int sourceFrameCount,
         int sampleRate
     )

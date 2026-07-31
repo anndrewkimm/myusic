@@ -1,7 +1,7 @@
 ---
-status: READY
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
-depends_on: [004, 008, 009]
+depends_on: [003, 004, 008, 009]
 ---
 
 # 019 — Mix two clips into one track
@@ -152,3 +152,37 @@ just not ruled out forever.
       reopened afterward for further editing (segment-split, stem-isolate,
       etc.) as its own independent clip.
 - [ ] All edge cases above are handled explicitly, not silently ignored.
+
+## What shipped
+
+- Added a dedicated `Mix two clips...` tray action and window. Each source
+  can be loaded from the existing clip catalog or through the existing
+  local audio import picker; already-decoded sources are cached within the
+  window so selecting the same file again does not repeat the decode.
+- Added independent 0-150% source volume controls, editable combined title
+  and artist tags, and export through the existing cataloging
+  `IClipExporter` path.
+- Added the UI-agnostic `TwoSourceAudioMixer`: the longer source sets the
+  exact output duration, the shorter source uses spec 009's existing
+  crossfade loop primitive, sample sums clamp safely, same-source mixing is
+  supported, cancellation is observed, and the existing five-minute
+  effects cap produces a clear error.
+- Mixed exports carry a reserved synthetic source identity; catalog re-trim
+  recognizes that identity and decodes the saved MP3. This makes a mixed
+  export reopen as its own independent editable source rather than
+  incorrectly depending on either input's live buffer, without changing
+  expired-buffer behavior for ordinary captures.
+- Added mixer, view-model, same-source, tag-editing, limit, and WPF window
+  initialization coverage. Full Debug and Release verification each pass
+  179/179 tests with 0 warnings.
+
+No deviations or known gaps within the acceptance criteria.
+
+## Follow-up ideas
+
+- The owner would prefer `Ctrl+Alt+H` to open a compact Hookline launcher
+  window instead of a cursor-positioned tray menu. That is a separate UX
+  decision because it changes every top-level action, not just mixing.
+- Profile and plan the reported effect-control/preview latency separately,
+  including stem-model warmup and clearer in-progress feedback for stem
+  isolation. Stem separation itself is intentionally outside this spec.
