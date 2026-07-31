@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 009, 010, 011, 012, 013, 016]
 ---
@@ -286,3 +286,16 @@ stays a provable invariant rather than one that depends on current UI
 tick-snapping.
 
 Back to `IN_PROGRESS` for item 1 (a real fix) and re-verification of item 2.
+
+## Review fixes shipped
+
+- Hoisted the shared 15 ms edge/boundary fade duration into the internal
+  `ClipFadeSettings.Duration` source of truth now consumed by both
+  `Mp3ClipExporter` and `SegmentedClipRenderer`.
+- Stopped the running app and completed the previously blocked full Debug
+  verification. Debug and Release both build with zero warnings and pass all
+  172 tests using the same build/test sequence as CI.
+- Confirmed the zero-split reverb path intentionally reads the canonical
+  `EditEffectSelection.ReverbWetMix`: both manual changes and presets are
+  normalized when they create that immutable selection, so render behavior
+  does not depend on the rounded display-only percentage getter.

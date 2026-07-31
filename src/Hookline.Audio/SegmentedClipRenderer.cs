@@ -4,9 +4,6 @@ namespace Hookline.Audio;
 
 public static class SegmentedClipRenderer
 {
-    public static readonly TimeSpan BoundaryCrossfadeDuration =
-        TimeSpan.FromMilliseconds(15);
-
     public static AudioBufferSnapshot Render(
         AudioBufferSnapshot source,
         IReadOnlyList<ClipSegmentRenderSettings> segments,
@@ -162,7 +159,7 @@ public static class SegmentedClipRenderer
         var desiredFrames = Math.Max(
             1,
             (int)Math.Round(
-                BoundaryCrossfadeDuration.TotalSeconds
+                ClipFadeSettings.Duration.TotalSeconds
                     * format.SampleRate
             )
         );

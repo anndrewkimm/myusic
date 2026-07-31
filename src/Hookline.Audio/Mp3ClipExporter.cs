@@ -7,8 +7,6 @@ namespace Hookline.Audio;
 public sealed class Mp3ClipExporter : IClipExporter
 {
     private const int BitRate = 192;
-    private static readonly TimeSpan FadeDuration =
-        TimeSpan.FromMilliseconds(15);
     private static readonly char[] InvalidFileNameCharacters =
         Path.GetInvalidFileNameChars();
     private static readonly HashSet<string> ReservedFileNames =
@@ -133,7 +131,8 @@ public sealed class Mp3ClipExporter : IClipExporter
         var audio = source.ToArray();
         var frameCount = audio.Length / format.BlockAlign;
         var desiredFadeFrames = (int)Math.Round(
-            FadeDuration.TotalSeconds * format.SampleRate
+            ClipFadeSettings.Duration.TotalSeconds
+            * format.SampleRate
         );
         var fadeFrames = Math.Min(
             desiredFadeFrames,
