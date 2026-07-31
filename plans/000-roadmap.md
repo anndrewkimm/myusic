@@ -4,6 +4,35 @@ status: READY
 
 # Roadmap
 
+## Status at a glance (updated 2026-07-31)
+
+Fast path for "what's the state of things right now." Full reasoning for
+every decision below lives in "Detailed history" further down and in each
+spec's own file — this table is the scan, not the whole story.
+
+**🔴 Blocked:** none right now.
+
+**🟡 In progress:**
+
+| Spec | What it is | Note |
+|---|---|---|
+| [019 — Mix two clips](019-mix-two-clips.md) | Now covers the full unified-workspace redesign (not just Mix) | Owner gave Codex direct instruction to keep this scope inside 019 rather than the separate spec 023 originally drafted for it — see 019's "Planner review (second pass)" for the reconciliation. Ctrl+Alt+H opens one real workspace, tray reduced to Open/Exit, Mix gets full per-source editing. **This is the priority item.** |
+
+**🟢 Ready for Codex — in priority order:**
+
+| Spec | What it is | Note |
+|---|---|---|
+| [022 — Multi-track retention](022-multi-track-retention-and-session-switching.md) | Retain last 5 tracks/20 min instead of a flat 5-min window | Independent of 019's workspace work, safe to pick up anytime |
+| [021 — Import from Spotify link](021-import-from-spotify-link.md) | Paste a Spotify link → resolve → import via spec 018's pipeline | Depends only on 018 (already `DONE`); per Codex's own sequencing note in 019, holding until 019 lands to avoid touching the import dialog mid-redesign |
+| [020 — Contextual help icons](020-contextual-help-icons.md) | Hover tooltips on every effect control | Fully independent; same holding pattern as 021 |
+
+**✅ Done — 18 specs, reviewed and shipped:** 001, 002, 003, 004, 005, 006,
+008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, and 023 (023 is
+"done" in the sense of *retired* — merged into 019, never separately
+implemented; see 023's own file for the merge note). Spec 007 was drafted,
+then dropped by owner decision before implementation — not "done,"
+intentionally not built. Gap in numbering is expected, not a missing file.
+
 ## Guiding principle
 
 Every phase should be something you can actually open and use, not just a technical milestone. If a phase ships and you wouldn't bother opening the app, the phase was scoped wrong.
@@ -56,7 +85,7 @@ A 2026-07-31 conversation about caching/memory raised the idea of using Redis so
 
 **Spec 019 shipped its first pass (option A, simple overlay) 2026-07-31, then hit real owner feedback after being tried live** — captured directly in the spec's "Open questions" section: Mix only exposed volume per source when it should expose the full per-source editor (EQ/effects/stems), and more fundamentally, `Ctrl+Alt+H` opening a tray menu of independent windows should instead be one persistent workspace. Codex correctly flagged this `BLOCKED` rather than guessing (`AGENTS.md` rule 4 working as intended) and raised four real sub-decisions. Since this is bigger than Mix — it touches window-management code shared by five separate window slots across the whole app (`App.xaml.cs`: trim, catalog, URL-import, mix, plus a per-import-track dictionary and a separate per-catalog-re-trim dictionary, checked directly in code before writing this) — split into its own spec rather than answered inline in 019.
 
-**Spec 023 (one unified application shell instead of five separate windows)** is `DRAFT`, deliberately not resolved solo despite this session's usual pattern of resolving open questions unilaterally — the scope (a real rearchitecture of every window in the app) crosses the line from "implementation detail with a sensible default" into "genuine product-shape decision," so recommendations are written but pending actual owner confirmation: (1) Mix should reuse one shared editor panel with an A/B selector, not two full panels side-by-side — the existing single-source editor is already dense, and this doubles as spec 022's own switcher mechanism instead of inventing a second one; (2) no new master/final effect stage after mixing — reopening the exported mix like any other clip already covers further shaping, consistent with 019's original scope; (3) tray right-click keeps direct-jump shortcuts alongside the shell, so the one-click power-user path doesn't regress; (4) session model matches spec 022 exactly — one active editor, an in-shell switcher, every session preserved. Spec 019 stays `BLOCKED` until 023 resolves; its shipped DSP core (`TwoSourceAudioMixer` — longer source sets length, shorter loops, same-source mixing allowed) carries forward unchanged regardless of outcome, only the window/UI layer needs replacing.
+**Spec 023 (one unified application shell instead of five separate windows)** was drafted as its own spec with four sub-decisions and owner-confirmed the same day via the process above — then superseded hours later when the owner gave Codex direct, more specific instruction to keep this work inside spec 019 instead of splitting it out. **023 is retired** (status `DONE` with a merge note, never separately implemented); **019 is now the single authoritative spec for the whole workspace redesign.** Reconciling the two surfaced one genuine conflict, resolved in favor of the more recent direct instruction: 023 recommended keeping tray right-click shortcuts for a fast power-user path; the owner's direct instruction to Codex reduces the tray to just "Open Hookline" and "Exit," full stop — one consistent way to reach anything, no secondary path. The other three decisions matched (shared A/B editor panel for Mix, no master effect stage, session model aligned with spec 022) — Codex's own revision was in fact more specific on one of them (imports explicitly reuse the same embedded editor Capture uses, not just "a view"). Spec 019 is now `IN_PROGRESS`; its already-shipped DSP core (`TwoSourceAudioMixer` — longer source sets length, shorter loops, same-source mixing allowed) carries forward unchanged, only the window/UI layer is being replaced.
 
 Two new specs came out of a 2026-07-28 conversation about giving clips a "TikTok edit" feel:
 

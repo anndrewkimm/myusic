@@ -1,7 +1,7 @@
 ---
-status: BLOCKED
+status: IN_PROGRESS
 touches: [Hookline.App, Hookline.Audio]
-depends_on: [003, 004, 008, 009]
+depends_on: [003, 004, 008, 009, 014, 022]
 ---
 
 # 019 — Mix two clips into one track
@@ -187,7 +187,7 @@ No deviations or known gaps within the acceptance criteria.
   including stem-model warmup and clearer in-progress feedback for stem
   isolation. Stem separation itself is intentionally outside this spec.
 
-## Open questions (owner review feedback, 2026-07-31)
+## Owner-directed review revision (2026-07-31)
 
 The owner rejected two central decisions in this revision after trying the
 shipped workflow, so the spec cannot move from review to done as written:
@@ -202,40 +202,105 @@ shipped workflow, so the spec cannot move from review to done as written:
   The current volume-only mix window and this spec's explicit exclusion of
   combined mix+effects UI do not satisfy that requirement.
 
-Planner decisions still required before Codex can safely replace the
-current implementation:
+The owner clarified that this work remains part of spec 019 and directed
+Codex to replace the rejected workflow now. The revised decisions are:
 
-1. In the Mix view, should the complete editor be one shared panel with an
-   A/B source selector (keeps the window compact), or two complete editor
-   panels visible side-by-side (faster comparison but much denser)?
-2. After the independently-processed sources are mixed, is there also a
-   third master/final effect stage, or only the two per-source effect stacks?
-3. Should tray right-click retain shortcuts that navigate directly to the
-   corresponding workspace view, or should the tray expose only Open and
-   Exit while every action lives exclusively inside the workspace?
-4. Define the single-window session rule when several imports or retained
-   tracks exist: one active editor with a switcher that preserves every
-   session (aligned with spec 022), or a different in-shell arrangement.
+1. `Ctrl+Alt+H` and tray left-click open one full-size Hookline workspace;
+   they never open the six-item action popup.
+2. The workspace contains persistent navigation for Home, Capture/Edit,
+   Import, Mix, and Library. File and URL imports load into the same editor
+   used by Capture rather than spawning another editor window.
+3. Mix uses A/B source navigation with one consistent editor surface. Each
+   source owns an independent complete effect state (segments, EQ, edit
+   effects, and stems) before the two processed buffers are combined. No
+   additional master-effects stage is added in this revision.
+4. The tray context menu is reduced to Open Hookline and Exit. All creation,
+   import, mixing, and library actions live inside the workspace.
+5. One managed workspace window owns the active sessions and navigation;
+   task-specific Hookline windows are no longer spawned. Native file/folder
+   pickers and required confirmation dialogs remain normal OS dialogs.
+6. Closing the workspace window minimizes to tray (does not exit the app)
+   — consistent with today's tray-resident model where the app keeps
+   running/capturing in the background; `Exit Hookline` in the tray menu
+   is the only way to actually quit.
+7. A slow operation (stem separation, a URL download) started in one view
+   keeps running in the background when the user navigates to a different
+   view — not just its state preserved, the operation itself continues —
+   and reports its result when the user returns to that view.
 
-This is review feedback on the active spec, not permission to start specs
-020-022. Status is `BLOCKED` until the planner rewrites the resolved
-decisions and acceptance criteria around the unified-workspace model.
+### Revised acceptance criteria
 
-## Planner note (2026-07-31)
+- [ ] `Ctrl+Alt+H` opens or focuses one full-size Hookline workspace and
+      never displays the action popup.
+- [ ] Home, Capture/Edit, Import, Mix, and Library are reachable inside the
+      workspace without opening separate Hookline task windows.
+- [ ] Capture, local-file import, and URL import all hand off to the same
+      embedded editor surface and preserve the existing editing features.
+- [ ] Mix source A and source B each have independent access to the same
+      segment, EQ, edit-effect, and stem tools as the ordinary editor before
+      the existing two-source mixer combines them.
+- [ ] Navigation preserves in-progress source/edit state; switching views
+      does not discard a selection, effect state, or completed slow result.
+- [ ] The clip library is usable inside the workspace, including play,
+      rename, delete, reveal, and re-edit actions.
+- [ ] Tray right-click contains only Open Hookline and Exit Hookline; tray
+      left-click opens/focuses the workspace.
+- [ ] Existing import, mixer, editor, and catalog behavior remains covered
+      and the full Debug/Release suite stays green.
+- [ ] Closing the workspace window minimizes to tray and background
+      capture keeps running; only "Exit Hookline" actually quits the app.
+- [ ] A slow operation (stem separation, URL download) started in one view
+      keeps running when the user navigates elsewhere in the workspace,
+      not just its prior state preserved — it completes in the background
+      and reports its result when the user returns to that view.
+- [ ] Spec 014's guarantee (no permanently-stuck-invisible window after a
+      failed show) holds under the new single-workspace model —
+      regression tested against the new mechanism, not assumed to carry
+      over from the retired per-action `ManagedWindowSlot` instances.
 
-This feedback is bigger than this spec — it's a real application-shell
-redesign touching every window in Hookline, not just Mix. Split out into
-`plans/023-unified-app-shell.md` rather than answered inline here, so the
-shell architecture gets planned as itself instead of as a side effect of
-fixing Mix. Owner confirmed 023's scope and all four of its sub-decisions
-the same day — it's now `READY` for Codex to implement next.
+Specs 020-022 remain untouched until this revised spec returns to `DONE`.
 
-This spec (019) stays `BLOCKED` until 023 actually ships, not just until
-023 is decided — rewriting this spec's "Resolved implementation decisions"
-against 023's shell APIs before they exist in code would mean designing
-against an imagined interface. Once 023 is `DONE`, rewrite this spec's Mix
-window design against the real shell (per-source full editor via 023's
-shared panel + A/B selector, not the current volume-only window). The
-already-shipped `TwoSourceAudioMixer` DSP core (longer-source-sets-length,
-shorter-loops, same-source-allowed) carries forward unchanged regardless
-— only the window/UI layer around it gets replaced.
+## Planner review (2026-07-31, second pass — supersedes the note below)
+
+Owner gave Codex direct, more specific instruction than the split-into-023
+plan this note originally described: **this work stays inside spec 019**,
+not a separate spec. Reviewed the "Owner-directed review revision" section
+above against `plans/023-unified-app-shell.md` (which was independently
+drafted and owner-confirmed earlier the same day) to reconcile the two
+rather than leave conflicting specs both claiming this scope:
+
+- **Three of four decisions match exactly**, and Codex's revision is
+  *more* specific on one of them — welcome, not a conflict: "file/URL
+  imports hand off to the same embedded editor surface Capture uses" is a
+  sharper, better version of 023's looser "Import is a view."
+- **One real conflict, resolved in favor of the more recent, more
+  specific instruction**: spec 023 recommended keeping tray right-click
+  direct-jump shortcuts alongside the shell (optimizing for power-user
+  speed). This revision reduces the tray to just "Open Hookline" and
+  "Exit" (optimizing for one consistent mental model — there is exactly
+  one way to reach anything). Since this came from the owner directly and
+  explicitly, it wins over the earlier recommendation. **Tray menu:
+  Open Hookline + Exit only, full stop.**
+- **Two edge cases from 023 worth carrying forward explicitly**, since
+  they're real risks this revision's acceptance criteria don't fully
+  spell out: (1) closing the shell window entirely — exit the app, or
+  minimize to tray? Needs an explicit choice, not an assumption; (2) a
+  slow operation (stem separation, a URL download) started in one view
+  must keep *running* in the background when the user navigates away, not
+  merely have its *state* preserved — these are different guarantees.
+  Also: this consolidation touches the exact window-lifecycle code spec
+  014 had to fix a real stuck-window bug in — regression-test that
+  guarantee under the new single-shell model, don't just assume it
+  carries over because the old `ManagedWindowSlot` mechanism did.
+- `depends_on` updated below to include 014 (window-lifecycle precedent)
+  and 022 (session-model alignment), matching what 023 already declared.
+
+**`plans/023-unified-app-shell.md` is retired** — marked `DONE` with a
+merge note, not picked up separately, so Codex only ever has one spec to
+implement against for this scope. No code was ever written against 023
+directly (it was never picked up as its own `IN_PROGRESS` spec), so
+nothing is lost by folding it back in.
+
+**Sign-off: Codex may proceed with implementation** against the "Owner-
+directed review revision" section above, with the tray-menu resolution and
+two edge cases from this review folded in as authoritative.

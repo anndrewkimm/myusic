@@ -1,10 +1,25 @@
 ---
-status: READY
+status: DONE
 touches: [Hookline.App]
 depends_on: [003, 004, 014, 018, 019, 022]
 ---
 
 # 023 — One Hookline workspace instead of five separate windows
+
+## Retired — merged into spec 019 (2026-07-31)
+
+**Do not implement this spec separately.** Owner gave Codex direct
+instruction to keep the unified-shell redesign inside `plans/019-mix-two-clips.md`
+rather than as its own spec — see that spec's "Owner-directed review
+revision" and "Planner review (second pass)" sections for the authoritative,
+current version of everything below. This file is kept only as a record of
+the original research (window-slot inventory, the Redis-adjacent reasoning
+tie-in, the four sub-decisions and their rationale) and was never picked up
+as its own `IN_PROGRESS` implementation, so nothing is lost by retiring it.
+One real difference to note: this spec recommended keeping tray right-click
+direct-jump shortcuts; spec 019's revision reduces the tray to "Open
+Hookline" + "Exit" only, per more specific direct owner instruction — that
+supersedes the recommendation below.
 
 ## Goal
 
