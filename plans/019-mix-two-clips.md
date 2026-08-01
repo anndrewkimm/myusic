@@ -1,5 +1,5 @@
 ---
-status: REVIEW
+status: IN_PROGRESS
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 004, 008, 009, 014, 022]
 ---
@@ -329,3 +329,38 @@ two edge cases from this review folded in as authoritative.
 No deviations or known gaps from the authoritative revised acceptance
 criteria. The earlier tray-entry/window criteria are superseded by the
 owner-directed review revision above.
+
+## Review notes (2026-07-31)
+
+Reviewed independently against commit `3b16f82` — all 11 items in the
+revised acceptance criteria verified against actual code (not just these
+notes), with file:line citations kept on file: single-workspace hotkey/tray
+routing, tray right-click reduced to exactly Open Hookline + Exit (the four
+old items are gone from the constructor, not just unwired), Capture/local
+import/URL import all funnel through one shared `CreateEditor` surface, Mix
+A/B uses one hosted surface with two independent full `TrimViewModel`
+sessions (not side-by-side panels, full segment/EQ/effect/stem parity),
+`Hookline.Audio` untouched (zero master-stage scope creep), in-progress
+state genuinely cached rather than recreated on navigation, close
+minimizes rather than exits, URL downloads and stem separation keep
+running off-screen and export is correctly gated while either mix source
+is still busy, and spec 014's stuck-window guarantee has a real new
+regression test (`WorkspaceShowFailureAllowsTheNextHotkeyToRetry`) rather
+than an assumed carryover. Release: 182/182, 0 warnings.
+
+One real, minor finding — not blocking DONE on its own, but worth a clean
+pass rather than leaving dead code from a rearchitecture this size: the old
+`src/Hookline.App/Catalog/ClipRetrimLauncher.cs` (superseded by
+`WorkspaceClipRetrimLauncher.cs`) is still in the tree with zero remaining
+call sites. Please delete it — leaving superseded window-management code
+sitting unused is exactly the kind of thing that causes confusion the next
+time someone touches this area.
+
+Also: Debug test verification is still blocked by a running
+`Hookline.App.exe` (same recurring environmental issue as earlier reviews
+today, not a code defect) — Release is fully green, but please get a
+genuinely clean `dotnet test -c Debug` run on record once nothing has the
+app open, same bar every other spec this session has been held to.
+
+Back to `IN_PROGRESS` for the dead-code removal and Debug re-verification
+— both small, neither calls the actual redesign into question.
