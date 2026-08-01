@@ -1,7 +1,7 @@
 ---
-status: BLOCKED
+status: READY
 touches: [Hookline.App, Hookline.Audio]
-depends_on: [003, 004, 008, 009, 014, 022]
+depends_on: [003, 004, 008, 009, 011, 014, 022]
 ---
 
 # 019 — Mix two clips into one track
@@ -400,3 +400,101 @@ is blocked on the following UX decisions rather than guessing silently:
    combined audio** action? The current screen only exposes `Export mixed
    MP3` at the bottom of Mix setup and has no preview of both processed
    sources together, which is the main discoverability gap observed here.
+
+## Resolved (owner-confirmed 2026-07-31, second pass)
+
+Question 1 and 2 above put to the owner directly rather than guessed —
+answers below. Question 3 resolved by the planner without asking: every
+other editing surface in this app previews before export (that's the whole
+trim-window model), so Mix having no preview was the actual inconsistency,
+not a real open question.
+
+1. **Mix setup offers three named recipes, not one forced flow**:
+   - **"Vocals + Instrumental Mashup"** — simultaneous. One source's vocal
+     stem plays over the other's instrumental (everything-but-vocals)
+     stems.
+   - **"A then B"** — sequential. Source A's (possibly trimmed) selection
+     plays fully, then Source B's, joined by a crossfade.
+   - **"Custom"** — today's already-shipped manual two-full-editor flow,
+     unchanged, just relabeled as one of three named choices instead of
+     the only option.
+   Matches the same "sequence multiple rather than force one" pattern the
+   owner already chose for this spec's original A/B/C scope fork.
+2. **Mashup recipe specifics**:
+   - Picking it **immediately and automatically** runs stem separation on
+     both sources — no separate consent click. The existing app-wide
+     "usually several seconds or longer" timing disclosure and progress
+     indicator (spec 011) still show; automatic means no *extra* click
+     before starting, not that the wait becomes invisible.
+   - The two picker slots are labeled **"Vocals source"** and
+     **"Instrumental source"** when this recipe is active (not generic
+     "Source A/B"), with a one-click swap if picked backwards — clearer
+     than hardcoding which slot means what, and avoids a redundant
+     click for the common case.
+   - Default gains on selection: vocals source → its vocal stem at 100%,
+     its other stems muted; instrumental source → every non-vocal stem
+     (bass/drums/other, plus guitar/piano if 6-stem separation is active)
+     at 100%, its vocal stem muted. Sliders remain fully adjustable
+     afterward — this is a starting point, not a lock.
+3. **Sequential recipe specifics**:
+   - Joined by a crossfade — but **not** the existing 15ms
+     `ClipFadeSettings.Duration` used for same-song internal seams (spec
+     015's segment boundaries, export edge fades). That constant exists
+     purely to prevent an audible click at a self-inflicted edit point
+     within one continuous piece of audio; going from one song to an
+     unrelated other song is a bigger transition and deserves to feel like
+     one. Use a distinctly longer fixed crossfade — **1.5 seconds** — long
+     enough to read as a deliberate transition without attempting real
+     beat-matching (that's option C, explicitly out of scope). Not
+     exposed as an adjustable control, same "sensible default, no new UI
+     surface for something with one obviously-right answer" reasoning as
+     the 15ms constant itself.
+   - Output duration: A's (trimmed) length plus B's (trimmed) length,
+     minus the crossfade overlap.
+4. **Preview mix, resolved by the planner**: add a "Preview mix" action
+   that renders the selected recipe's result into a buffer and plays it
+   through the existing `AudioPreviewPlayer` (spec 003/016) — no new
+   playback code, same infrastructure every other preview in this app
+   already uses. Must be byte-identical to what "Export mixed MP3" would
+   produce, same discipline held everywhere else in this codebase.
+
+## Recipe edge cases
+
+- A source with no isolable vocal content (instrumental-only track picked
+  as "vocals source") — stem separation still runs and produces a
+  near-silent/quiet vocal stem; not an error, same as spec 011's existing
+  behavior for any track with a weak/absent vocal stem.
+- Switching recipes after sources are already picked — re-picking `A then
+  B` after `Mashup` (or vice versa) re-applies that recipe's default
+  gains/roles rather than leaving stale settings from the previous
+  recipe's assumptions; `Custom` always preserves whatever the two full
+  editors currently hold, since it never applied recipe defaults to begin
+  with.
+- Sequential recipe where A or B alone already exceeds the existing
+  5-minute effects cap, or the combined A+B length would — same clear
+  capped-length message used everywhere else in this codebase, checked
+  before export, not a silent truncation.
+- Preview mix requested while a source is still mid-stem-separation —
+  disabled/gated the same way Export already is, not a race.
+
+## Recipe acceptance criteria
+
+- [ ] Mix setup presents three named recipes — "Vocals + Instrumental
+      Mashup," "A then B," "Custom" — not a single forced flow.
+- [ ] Selecting the Mashup recipe automatically starts stem separation on
+      both sources with no extra consent click, labels the two slots
+      "Vocals source"/"Instrumental source" with a one-click swap, and
+      sets the described default gains (vocal stem 100%/others muted on
+      one side, all non-vocal stems 100%/vocal muted on the other) —
+      still freely adjustable afterward.
+- [ ] Selecting the "A then B" recipe joins the two (possibly trimmed)
+      sources sequentially with a fixed 1.5-second crossfade, distinct
+      from the existing 15ms same-song fade constant; output duration is
+      the sum of both trimmed lengths minus the overlap.
+- [ ] A "Preview mix" action exists, plays through the existing
+      `AudioPreviewPlayer`, and is byte-identical to what exporting would
+      produce for the currently-selected recipe and settings.
+- [ ] Switching recipes re-applies that recipe's own defaults rather than
+      leaving stale settings from a previously-selected recipe.
+- [ ] All recipe edge cases above are handled explicitly, not silently
+      ignored.
