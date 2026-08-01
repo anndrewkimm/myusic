@@ -1104,20 +1104,9 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         StatusMessage = string.Empty;
         try
         {
-            var segmentedRequest = _splitPoints.Count == 0
-                ? null
-                : CreateSegmentedRenderRequest();
-            var selection = _splitPoints.Count == 0
-                ? CreateSelectionSnapshot(
-                    _lifetimeCancellation.Token
-                )
-                : await Task.Run(
-                    () => RenderSegmentedRequest(
-                        segmentedRequest!,
-                        _lifetimeCancellation.Token
-                    ),
-                    _lifetimeCancellation.Token
-                );
+            var selection = await RenderSelectionAsync(
+                _lifetimeCancellation.Token
+            );
             if (selection is null)
             {
                 return;
@@ -1163,6 +1152,39 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
         {
             IsExporting = false;
         }
+    }
+
+    public async Task<AudioBufferSnapshot?> RenderSelectionAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!HasSelection)
+        {
+            StatusMessage = AppStrings.SelectFirst;
+            return null;
+        }
+
+        StopPreview();
+        var request = CreateSegmentedRenderRequest();
+        if (request is null)
+        {
+            return null;
+        }
+
+        using var linkedCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token,
+                cancellationToken
+            );
+        return await Task.Run(
+            () =>
+                RenderSegmentedRequest(
+                    request,
+                    linkedCancellation.Token
+                ),
+            linkedCancellation.Token
+        );
     }
 
     public bool TrySetOutputFolder(

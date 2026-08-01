@@ -100,6 +100,96 @@ public sealed class MixWindowViewModelTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task IndependentEditorRendersFeedEachMixSource()
+    {
+        var exporter = new RecordingExporter(
+            Path.Combine(_temporaryDirectory, "edited-mix.mp3")
+        );
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            exporter,
+            _settings
+        );
+        var source = CreateSource("Original", "Artist", 100);
+        viewModel.SetSource(MixSourceSlot.First, source);
+        viewModel.SetSource(MixSourceSlot.Second, source);
+        var firstRenderCount = 0;
+        var secondRenderCount = 0;
+        viewModel.SetSourceRenderer(
+            MixSourceSlot.First,
+            _ =>
+            {
+                firstRenderCount++;
+                return Task.FromResult<AudioBufferSnapshot?>(
+                    CreateSource("Edited A", "Artist", 1_000)
+                        .Snapshot
+                );
+            },
+            () => true
+        );
+        viewModel.SetSourceRenderer(
+            MixSourceSlot.Second,
+            _ =>
+            {
+                secondRenderCount++;
+                return Task.FromResult<AudioBufferSnapshot?>(
+                    CreateSource("Edited B", "Artist", 2_000)
+                        .Snapshot
+                );
+            },
+            () => true
+        );
+
+        await viewModel.ExportAsync();
+
+        Assert.Equal(1, firstRenderCount);
+        Assert.Equal(1, secondRenderCount);
+        Assert.NotNull(exporter.Selection);
+        Assert.All(
+            ReadSamples(exporter.Selection!.Audio.Span),
+            sample => Assert.Equal(3_000, sample)
+        );
+    }
+
+    [Fact]
+    public async Task BusySourceEditorBlocksMixExport()
+    {
+        var exporter = new RecordingExporter(
+            Path.Combine(_temporaryDirectory, "blocked-mix.mp3")
+        );
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            exporter,
+            _settings
+        );
+        var source = CreateSource("Busy", "Artist", 100);
+        viewModel.SetSource(MixSourceSlot.First, source);
+        viewModel.SetSource(MixSourceSlot.Second, source);
+        viewModel.SetSourceRenderer(
+            MixSourceSlot.First,
+            _ => Task.FromResult<AudioBufferSnapshot?>(source.Snapshot),
+            () => false
+        );
+        viewModel.SetSourceRenderer(
+            MixSourceSlot.Second,
+            _ => Task.FromResult<AudioBufferSnapshot?>(source.Snapshot),
+            () => true
+        );
+
+        Assert.False(viewModel.CanExport);
+
+        await viewModel.ExportAsync();
+
+        Assert.Null(exporter.Selection);
+        Assert.Equal(
+            AppStrings.WorkspaceMixSourceBusy,
+            viewModel.StatusMessage
+        );
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

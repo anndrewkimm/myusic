@@ -1,0 +1,262 @@
+<Window
+    x:Class="Hookline.App.WorkspaceWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+    xmlns:local="clr-namespace:Hookline.App"
+    Title="{x:Static local:AppStrings.WorkspaceTitle}"
+    Width="1280"
+    Height="820"
+    MinWidth="1000"
+    MinHeight="680"
+    WindowStartupLocation="CenterScreen"
+    WindowStyle="None"
+    Background="{StaticResource WindowBackgroundBrush}"
+    Closing="OnClosing"
+    PreviewKeyDown="OnPreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="WorkspaceNavButton" TargetType="Button">
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Padding" Value="14,11" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style x:Key="WorkspaceCard" TargetType="Border">
+            <Setter Property="Width" Value="310" />
+            <Setter Property="MinHeight" Value="168" />
+            <Setter Property="Margin" Value="0,0,16,16" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="#2B3340" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="#343B48" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="58" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid
+                Grid.Row="0"
+                Background="#111620"
+                MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
+                <StackPanel
+                    Margin="20,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontFamily="Segoe UI Semibold"
+                        FontSize="19"
+                        Foreground="{StaticResource AccentBrush}"
+                        Text="{x:Static local:AppStrings.WorkspaceTitle}" />
+                    <TextBlock
+                        Margin="14,3,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        Text="{x:Static local:AppStrings.WorkspaceSubtitle}" />
+                </StackPanel>
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        Width="44"
+                        Height="34"
+                        Margin="0,11,0,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        automation:AutomationProperties.Name="{x:Static local:AppStrings.WorkspaceMinimize}"
+                        Click="OnMinimizeClick"
+                        Content="—" />
+                    <Button
+                        Width="44"
+                        Height="34"
+                        Margin="0,11,10,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        automation:AutomationProperties.Name="{x:Static local:AppStrings.WorkspaceCloseToTray}"
+                        Click="OnCloseClick"
+                        Content="✕" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="205" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Grid.Column="0"
+                    Padding="14,20"
+                    Background="#10141C"
+                    BorderBrush="#252C37"
+                    BorderThickness="0,0,1,0">
+                    <StackPanel>
+                        <Button
+                            Style="{StaticResource WorkspaceNavButton}"
+                            Click="OnHomeClick"
+                            Content="{x:Static local:AppStrings.WorkspaceHome}" />
+                        <Button
+                            Style="{StaticResource WorkspaceNavButton}"
+                            Click="OnCaptureClick"
+                            Content="{x:Static local:AppStrings.WorkspaceCapture}" />
+                        <Button
+                            Style="{StaticResource WorkspaceNavButton}"
+                            Click="OnImportClick"
+                            Content="{x:Static local:AppStrings.WorkspaceImport}" />
+                        <Button
+                            Style="{StaticResource WorkspaceNavButton}"
+                            Click="OnMixClick"
+                            Content="{x:Static local:AppStrings.WorkspaceMix}" />
+                        <Button
+                            Style="{StaticResource WorkspaceNavButton}"
+                            Click="OnLibraryClick"
+                            Content="{x:Static local:AppStrings.WorkspaceLibrary}" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Column="1" Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        x:Name="MixContextBar"
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        Padding="10"
+                        Background="#18221F"
+                        BorderBrush="#365E51"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock
+                                x:Name="MixContextText"
+                                Margin="4,0,14,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource AccentBrush}" />
+                            <StackPanel
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                                <Button
+                                    Margin="0,0,7,0"
+                                    Padding="10,5"
+                                    Click="OnMixSetupClick"
+                                    Content="{x:Static local:AppStrings.WorkspaceMixSetup}" />
+                                <Button
+                                    Margin="0,0,7,0"
+                                    Padding="10,5"
+                                    Click="OnEditMixSourceAClick"
+                                    Content="{x:Static local:AppStrings.WorkspaceMixSourceA}" />
+                                <Button
+                                    Padding="10,5"
+                                    Click="OnEditMixSourceBClick"
+                                    Content="{x:Static local:AppStrings.WorkspaceMixSourceB}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <ScrollViewer
+                            x:Name="HomeView"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10,12,10,20">
+                                <TextBlock
+                                    FontFamily="Segoe UI Semibold"
+                                    FontSize="30"
+                                    Text="{x:Static local:AppStrings.WorkspaceHomeHeading}" />
+                                <TextBlock
+                                    Margin="0,8,0,26"
+                                    FontSize="13"
+                                    Foreground="{StaticResource MutedTextBrush}"
+                                    Text="{x:Static local:AppStrings.WorkspaceHomeSubtitle}" />
+                                <WrapPanel>
+                                    <Border Style="{StaticResource WorkspaceCard}">
+                                        <StackPanel>
+                                            <TextBlock FontFamily="Segoe UI Semibold" FontSize="18" Text="{x:Static local:AppStrings.WorkspaceCapture}" />
+                                            <TextBlock Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" Text="{x:Static local:AppStrings.WorkspaceCaptureDescription}" TextWrapping="Wrap" />
+                                            <Button HorizontalAlignment="Left" Click="OnCaptureClick" Content="{x:Static local:AppStrings.TrayOpen}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceCard}">
+                                        <StackPanel>
+                                            <TextBlock FontFamily="Segoe UI Semibold" FontSize="18" Text="{x:Static local:AppStrings.WorkspaceImport}" />
+                                            <TextBlock Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" Text="{x:Static local:AppStrings.WorkspaceImportDescription}" TextWrapping="Wrap" />
+                                            <Button HorizontalAlignment="Left" Click="OnImportClick" Content="{x:Static local:AppStrings.WorkspaceImport}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceCard}">
+                                        <StackPanel>
+                                            <TextBlock FontFamily="Segoe UI Semibold" FontSize="18" Text="{x:Static local:AppStrings.WorkspaceMix}" />
+                                            <TextBlock Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" Text="{x:Static local:AppStrings.WorkspaceMixDescription}" TextWrapping="Wrap" />
+                                            <Button HorizontalAlignment="Left" Click="OnMixClick" Content="{x:Static local:AppStrings.TrayMix}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceCard}">
+                                        <StackPanel>
+                                            <TextBlock FontFamily="Segoe UI Semibold" FontSize="18" Text="{x:Static local:AppStrings.WorkspaceLibrary}" />
+                                            <TextBlock Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" Text="{x:Static local:AppStrings.WorkspaceLibraryDescription}" TextWrapping="Wrap" />
+                                            <Button HorizontalAlignment="Left" Click="OnLibraryClick" Content="{x:Static local:AppStrings.TrayLibrary}" />
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="HomeStatus"
+                                    Margin="0,8,0,0"
+                                    Foreground="{StaticResource WarningBrush}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Grid x:Name="ImportView" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border
+                                Margin="0,0,0,14"
+                                Padding="16"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                CornerRadius="9">
+                                <DockPanel>
+                                    <Button
+                                        DockPanel.Dock="Right"
+                                        Margin="20,0,0,0"
+                                        Click="OnImportLocalClick"
+                                        Content="{x:Static local:AppStrings.TrayImport}" />
+                                    <StackPanel>
+                                        <TextBlock FontFamily="Segoe UI Semibold" FontSize="18" Text="{x:Static local:AppStrings.WorkspaceImportLocalHeading}" />
+                                        <TextBlock Margin="0,5,0,0" Foreground="{StaticResource MutedTextBrush}" Text="{x:Static local:AppStrings.WorkspaceImportLocalDescription}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="ImportStatus" Margin="0,6,0,0" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <Border
+                                Grid.Row="1"
+                                Background="{StaticResource PanelBackgroundBrush}"
+                                CornerRadius="9">
+                                <ContentControl x:Name="UrlImportHost" />
+                            </Border>
+                        </Grid>
+
+                        <ContentControl
+                            x:Name="HostedView"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch"
+                            Visibility="Collapsed" />
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -13,6 +13,8 @@ public partial class ClipCatalogWindow : Window
     private readonly ClipCatalogWindowViewModel _viewModel;
     private readonly ClipCatalogService _catalog;
     private bool _loaded;
+    private bool _isHosted;
+    private bool _disposed;
 
     public ClipCatalogWindow(
         ClipCatalogWindowViewModel viewModel,
@@ -30,10 +32,50 @@ public partial class ClipCatalogWindow : Window
         _catalog.Changed += OnCatalogChanged;
     }
 
-    protected override void OnClosed(EventArgs args)
+    internal event EventHandler? HostCloseRequested;
+
+    internal FrameworkElement TakeContentForHost()
     {
+        if (Content is not FrameworkElement content)
+        {
+            throw new InvalidOperationException(
+                AppStrings.WorkspaceViewUnavailable
+            );
+        }
+
+        _isHosted = true;
+        HeaderBar.Visibility = Visibility.Collapsed;
+        Content = null;
+        content.DataContext = _viewModel;
+        return content;
+    }
+
+    internal async Task LoadHostedAsync()
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
+        await _viewModel.LoadAsync();
+    }
+
+    internal void DisposeHosted()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _catalog.Changed -= OnCatalogChanged;
         _viewModel.Dispose();
+    }
+
+    protected override void OnClosed(EventArgs args)
+    {
+        DisposeHosted();
         base.OnClosed(args);
     }
 
@@ -144,7 +186,7 @@ public partial class ClipCatalogWindow : Window
             item.DisplayTitle
         );
         var result = MessageBox.Show(
-            this,
+            Window.GetWindow((DependencyObject)sender) ?? this,
             message,
             AppStrings.CatalogDeleteConfirmTitle,
             MessageBoxButton.YesNo,
@@ -213,7 +255,14 @@ public partial class ClipCatalogWindow : Window
         )
         {
             args.Handled = true;
-            Close();
+            if (_isHosted)
+            {
+                HostCloseRequested?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                Close();
+            }
         }
     }
 
@@ -234,14 +283,25 @@ public partial class ClipCatalogWindow : Window
     {
         if (args.ChangedButton == MouseButton.Left)
         {
-            DragMove();
+            (Window.GetWindow((DependencyObject)sender) ?? this)
+                .DragMove();
         }
     }
 
     private void OnCloseClick(
         object sender,
         RoutedEventArgs args
-    ) => Close();
+    )
+    {
+        if (_isHosted)
+        {
+            HostCloseRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            Close();
+        }
+    }
 
     private static ClipCatalogItemViewModel? GetItem(
         object sender

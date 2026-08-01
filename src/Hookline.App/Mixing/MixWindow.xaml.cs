@@ -11,6 +11,8 @@ public partial class MixWindow : Window
 {
     private readonly MixWindowViewModel _viewModel;
     private bool _loaded;
+    private bool _isHosted;
+    private bool _disposed;
 
     public MixWindow(MixWindowViewModel viewModel)
     {
@@ -21,9 +23,52 @@ public partial class MixWindow : Window
         DataContext = viewModel;
     }
 
+    internal event EventHandler? HostCloseRequested;
+
+    internal event EventHandler<MixSourceEditRequestedEventArgs>?
+        EditSourceRequested;
+
+    internal FrameworkElement TakeContentForHost()
+    {
+        if (Content is not FrameworkElement content)
+        {
+            throw new InvalidOperationException(
+                AppStrings.WorkspaceViewUnavailable
+            );
+        }
+
+        _isHosted = true;
+        HeaderBar.Visibility = Visibility.Collapsed;
+        Content = null;
+        content.DataContext = _viewModel;
+        return content;
+    }
+
+    internal async Task LoadHostedAsync()
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
+        await _viewModel.LoadCatalogAsync();
+    }
+
+    internal void DisposeHosted()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _viewModel.Dispose();
+    }
+
     protected override void OnClosed(EventArgs args)
     {
-        _viewModel.Dispose();
+        DisposeHosted();
         base.OnClosed(args);
     }
 
@@ -80,14 +125,25 @@ public partial class MixWindow : Window
     private async void OnImportFirstClick(
         object sender,
         RoutedEventArgs args
-    ) => await ImportSourceAsync(MixSourceSlot.First);
+    ) =>
+        await ImportSourceAsync(
+            MixSourceSlot.First,
+            Window.GetWindow((DependencyObject)sender)
+        );
 
     private async void OnImportSecondClick(
         object sender,
         RoutedEventArgs args
-    ) => await ImportSourceAsync(MixSourceSlot.Second);
+    ) =>
+        await ImportSourceAsync(
+            MixSourceSlot.Second,
+            Window.GetWindow((DependencyObject)sender)
+        );
 
-    private async Task ImportSourceAsync(MixSourceSlot slot)
+    private async Task ImportSourceAsync(
+        MixSourceSlot slot,
+        Window? owner
+    )
     {
         var dialog = new FileOpenDialog
         {
@@ -96,7 +152,7 @@ public partial class MixWindow : Window
             CheckFileExists = true,
             Multiselect = false,
         };
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(owner ?? this) == true)
         {
             await _viewModel.ImportSourceAsync(
                 slot,
@@ -110,6 +166,28 @@ public partial class MixWindow : Window
         RoutedEventArgs args
     ) => await _viewModel.ExportAsync();
 
+    private void OnEditFirstSourceClick(
+        object sender,
+        RoutedEventArgs args
+    ) =>
+        EditSourceRequested?.Invoke(
+            this,
+            new MixSourceEditRequestedEventArgs(
+                MixSourceSlot.First
+            )
+        );
+
+    private void OnEditSecondSourceClick(
+        object sender,
+        RoutedEventArgs args
+    ) =>
+        EditSourceRequested?.Invoke(
+            this,
+            new MixSourceEditRequestedEventArgs(
+                MixSourceSlot.Second
+            )
+        );
+
     private void OnWindowPreviewKeyDown(
         object sender,
         KeyEventArgs args
@@ -118,7 +196,14 @@ public partial class MixWindow : Window
         if (args.Key == Key.Escape)
         {
             args.Handled = true;
-            Close();
+            if (_isHosted)
+            {
+                HostCloseRequested?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                Close();
+            }
         }
     }
 
@@ -129,12 +214,23 @@ public partial class MixWindow : Window
     {
         if (args.ChangedButton == MouseButton.Left)
         {
-            DragMove();
+            (Window.GetWindow((DependencyObject)sender) ?? this)
+                .DragMove();
         }
     }
 
     private void OnCloseClick(
         object sender,
         RoutedEventArgs args
-    ) => Close();
+    )
+    {
+        if (_isHosted)
+        {
+            HostCloseRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            Close();
+        }
+    }
 }

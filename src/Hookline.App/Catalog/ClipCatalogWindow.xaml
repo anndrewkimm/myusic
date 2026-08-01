@@ -39,6 +39,7 @@
             </Grid.RowDefinitions>
 
             <Grid
+                x:Name="HeaderBar"
                 Grid.Row="0"
                 Margin="-5,-9,-5,18"
                 Background="Transparent"

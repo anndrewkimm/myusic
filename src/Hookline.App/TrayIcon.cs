@@ -11,50 +11,22 @@ internal sealed class TrayIcon : IDisposable
 
     public TrayIcon(
         Action open,
-        Action importAudioFile,
-        Action importFromUrl,
-        Action mixClips,
-        Action openLibrary,
         Action exit
     )
     {
         ArgumentNullException.ThrowIfNull(open);
-        ArgumentNullException.ThrowIfNull(importAudioFile);
-        ArgumentNullException.ThrowIfNull(importFromUrl);
-        ArgumentNullException.ThrowIfNull(mixClips);
-        ArgumentNullException.ThrowIfNull(openLibrary);
         ArgumentNullException.ThrowIfNull(exit);
 
         _menu = new Forms.ContextMenuStrip();
         var openItem = new Forms.ToolStripMenuItem(
-            AppStrings.TrayOpen
+            AppStrings.WorkspaceOpen
         );
         openItem.Click += (_, _) => open();
-        var importItem = new Forms.ToolStripMenuItem(
-            AppStrings.TrayImport
-        );
-        importItem.Click += (_, _) => importAudioFile();
-        var importFromUrlItem = new Forms.ToolStripMenuItem(
-            AppStrings.TrayImportFromUrl
-        );
-        importFromUrlItem.Click += (_, _) => importFromUrl();
-        var mixItem = new Forms.ToolStripMenuItem(
-            AppStrings.TrayMix
-        );
-        mixItem.Click += (_, _) => mixClips();
-        var libraryItem = new Forms.ToolStripMenuItem(
-            AppStrings.TrayLibrary
-        );
-        libraryItem.Click += (_, _) => openLibrary();
         var exitItem = new Forms.ToolStripMenuItem(
             AppStrings.TrayExit
         );
         exitItem.Click += (_, _) => exit();
         _menu.Items.Add(openItem);
-        _menu.Items.Add(importItem);
-        _menu.Items.Add(importFromUrlItem);
-        _menu.Items.Add(mixItem);
-        _menu.Items.Add(libraryItem);
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add(exitItem);
 
@@ -79,12 +51,6 @@ internal sealed class TrayIcon : IDisposable
 
     public void ShowError(string message) =>
         ShowBalloon(message, Forms.ToolTipIcon.Error);
-
-    public void ShowMenu()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _menu.Show(Forms.Cursor.Position);
-    }
 
     public void Dispose()
     {

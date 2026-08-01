@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 004, 008, 009, 014, 022]
 ---
@@ -230,30 +230,30 @@ Codex to replace the rejected workflow now. The revised decisions are:
 
 ### Revised acceptance criteria
 
-- [ ] `Ctrl+Alt+H` opens or focuses one full-size Hookline workspace and
+- [x] `Ctrl+Alt+H` opens or focuses one full-size Hookline workspace and
       never displays the action popup.
-- [ ] Home, Capture/Edit, Import, Mix, and Library are reachable inside the
+- [x] Home, Capture/Edit, Import, Mix, and Library are reachable inside the
       workspace without opening separate Hookline task windows.
-- [ ] Capture, local-file import, and URL import all hand off to the same
+- [x] Capture, local-file import, and URL import all hand off to the same
       embedded editor surface and preserve the existing editing features.
-- [ ] Mix source A and source B each have independent access to the same
+- [x] Mix source A and source B each have independent access to the same
       segment, EQ, edit-effect, and stem tools as the ordinary editor before
       the existing two-source mixer combines them.
-- [ ] Navigation preserves in-progress source/edit state; switching views
+- [x] Navigation preserves in-progress source/edit state; switching views
       does not discard a selection, effect state, or completed slow result.
-- [ ] The clip library is usable inside the workspace, including play,
+- [x] The clip library is usable inside the workspace, including play,
       rename, delete, reveal, and re-edit actions.
-- [ ] Tray right-click contains only Open Hookline and Exit Hookline; tray
+- [x] Tray right-click contains only Open Hookline and Exit Hookline; tray
       left-click opens/focuses the workspace.
-- [ ] Existing import, mixer, editor, and catalog behavior remains covered
+- [x] Existing import, mixer, editor, and catalog behavior remains covered
       and the full Debug/Release suite stays green.
-- [ ] Closing the workspace window minimizes to tray and background
+- [x] Closing the workspace window minimizes to tray and background
       capture keeps running; only "Exit Hookline" actually quits the app.
-- [ ] A slow operation (stem separation, URL download) started in one view
+- [x] A slow operation (stem separation, URL download) started in one view
       keeps running when the user navigates elsewhere in the workspace,
       not just its prior state preserved — it completes in the background
       and reports its result when the user returns to that view.
-- [ ] Spec 014's guarantee (no permanently-stuck-invisible window after a
+- [x] Spec 014's guarantee (no permanently-stuck-invisible window after a
       failed show) holds under the new single-workspace model —
       regression tested against the new mechanism, not assumed to carry
       over from the retired per-action `ManagedWindowSlot` instances.
@@ -304,3 +304,28 @@ nothing is lost by folding it back in.
 **Sign-off: Codex may proceed with implementation** against the "Owner-
 directed review revision" section above, with the tray-menu resolution and
 two edge cases from this review folded in as authoritative.
+
+## What shipped (owner-directed review revision)
+
+- Replaced the hotkey action popup and separate task entry points with one
+  full-size Hookline workspace. `Ctrl+Alt+H` and tray left-click restore or
+  focus it; tray right-click now contains only Open Hookline and Exit
+  Hookline, and closing the workspace hides it without stopping capture.
+- Added persistent Home, Capture/Edit, Import, Mix, and Library navigation.
+  The existing capture editor, local/URL import workflow, mixer, and catalog
+  are hosted in that shell, retain their state off-screen, and keep slow URL
+  downloads or stem jobs running while another view is open.
+- Gave mix source A and source B separate complete editor sessions. Each
+  source independently retains its selection, segments, EQ, effects, and
+  stem mix; export renders both editor states before applying the existing
+  per-source volume controls and two-source mixer. Export stays gated while
+  either editor has an active slow operation.
+- Removed callable legacy paths that opened task-specific Hookline windows.
+  Catalog re-edit now routes into the embedded editor, including mixed clips.
+- Added workspace construction, independent A/B rendering, busy-source
+  gating, hidden-workspace restore, and failed-show retry coverage. Debug and
+  Release both pass 182/182 tests with zero build warnings.
+
+No deviations or known gaps from the authoritative revised acceptance
+criteria. The earlier tray-entry/window criteria are superseded by the
+owner-directed review revision above.

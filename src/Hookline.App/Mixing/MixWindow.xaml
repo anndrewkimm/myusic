@@ -72,6 +72,7 @@
             </Grid.RowDefinitions>
 
             <Grid
+                x:Name="HeaderBar"
                 Grid.Row="0"
                 Margin="-6,-10,-6,20"
                 Background="Transparent"
@@ -154,6 +155,11 @@
                                     Text="{Binding FirstSourceDetail}" />
                             </StackPanel>
                         </Border>
+                        <Button
+                            Margin="0,10,0,0"
+                            IsEnabled="{Binding HasFirstSource}"
+                            Click="OnEditFirstSourceClick"
+                            Content="{x:Static local:AppStrings.WorkspaceMixSourceA}" />
                         <DockPanel Margin="0,18,0,4">
                             <TextBlock
                                 DockPanel.Dock="Left"
@@ -223,6 +229,11 @@
                                     Text="{Binding SecondSourceDetail}" />
                             </StackPanel>
                         </Border>
+                        <Button
+                            Margin="0,10,0,0"
+                            IsEnabled="{Binding HasSecondSource}"
+                            Click="OnEditSecondSourceClick"
+                            Content="{x:Static local:AppStrings.WorkspaceMixSourceB}" />
                         <DockPanel Margin="0,18,0,4">
                             <TextBlock
                                 DockPanel.Dock="Left"

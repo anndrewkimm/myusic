@@ -259,4 +259,46 @@ public static class AppStrings
         "That source could not be loaded: {0}";
     public const string MixOpenFailed =
         "The mix window could not be opened: {0}";
+    public const string WorkspaceTitle = "Hookline";
+    public const string WorkspaceSubtitle =
+        "Capture, shape, mix, and keep the moments you love.";
+    public const string WorkspaceOpen = "Open Hookline";
+    public const string WorkspaceHome = "Home";
+    public const string WorkspaceCapture = "Capture / Edit";
+    public const string WorkspaceImport = "Import";
+    public const string WorkspaceMix = "Mix";
+    public const string WorkspaceLibrary = "Library";
+    public const string WorkspaceHomeHeading = "What do you want to make?";
+    public const string WorkspaceHomeSubtitle =
+        "Everything stays in this workspace while Hookline keeps capturing in the background.";
+    public const string WorkspaceCaptureDescription =
+        "Open what Spotify is playing in the full editor.";
+    public const string WorkspaceImportDescription =
+        "Bring in a local media file or a video URL, then edit it here.";
+    public const string WorkspaceMixDescription =
+        "Layer two sources and shape each one independently.";
+    public const string WorkspaceLibraryDescription =
+        "Play, rename, re-edit, or reveal your saved clips.";
+    public const string WorkspaceImportHeading = "Import audio";
+    public const string WorkspaceImportSubtitle =
+        "Choose a file or paste a video URL. The result opens in Capture / Edit.";
+    public const string WorkspaceImportLocalHeading = "From this computer";
+    public const string WorkspaceImportLocalDescription =
+        "MP3, WAV, M4A, AAC, WMA, MP4, MKV, and WebM are supported.";
+    public const string WorkspaceImporting = "Importing audio…";
+    public const string WorkspaceNoEditor =
+        "Capture or import something first, then it will stay available here.";
+    public const string WorkspaceMixSourceA = "Edit source A";
+    public const string WorkspaceMixSourceB = "Edit source B";
+    public const string WorkspaceMixSetup = "Mix setup";
+    public const string WorkspaceEditingMixSource =
+        "Editing mix source {0} independently";
+    public const string WorkspaceMixSourceBusy =
+        "Finish or cancel the active source operation before exporting the mix.";
+    public const string WorkspaceViewUnavailable =
+        "Hookline could not load that workspace view.";
+    public const string WorkspaceOpenFailed =
+        "Hookline could not open the workspace: {0}";
+    public const string WorkspaceMinimize = "Minimize";
+    public const string WorkspaceCloseToTray = "Close to tray";
 }

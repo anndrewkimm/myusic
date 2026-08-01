@@ -3,7 +3,7 @@ namespace Hookline.App.Tests;
 public sealed class ManagedWindowSlotTests
 {
     [Fact]
-    public void ShowFailureClearsReferenceAndAllowsRetryWithoutRestart()
+    public void WorkspaceShowFailureAllowsTheNextHotkeyToRetry()
     {
         var slot = new ManagedWindowSlot<FakeWindow>();
         var failed = new FakeWindow { ThrowOnShow = true };
@@ -161,6 +161,36 @@ public sealed class ManagedWindowSlotTests
         Assert.Null(slot.Current);
     }
 
+    [Fact]
+    public void HiddenWorkspaceIsRestoredByTheNextOpenRequest()
+    {
+        var slot = new ManagedWindowSlot<FakeWindow>();
+        var workspace = new FakeWindow();
+        ShowNew(slot, workspace);
+        workspace.IsVisible = false;
+
+        var activated = slot.TryActivateExisting(
+            window => window.IsUsable,
+            window =>
+            {
+                if (!window.IsVisible)
+                {
+                    window.ShowCallCount++;
+                    window.IsVisible = true;
+                }
+
+                Activate(window);
+            },
+            Close
+        );
+
+        Assert.True(activated);
+        Assert.Same(workspace, slot.Current);
+        Assert.True(workspace.IsVisible);
+        Assert.Equal(2, workspace.ShowCallCount);
+        Assert.Equal(1, workspace.ActivateCallCount);
+    }
+
     private static bool ShowNew(
         ManagedWindowSlot<FakeWindow> slot,
         FakeWindow window
@@ -192,6 +222,7 @@ public sealed class ManagedWindowSlotTests
         }
 
         window.IsUsable = true;
+        window.IsVisible = true;
     }
 
     private static void Activate(FakeWindow window)
@@ -209,6 +240,7 @@ public sealed class ManagedWindowSlotTests
     {
         window.CloseCallCount++;
         window.IsUsable = false;
+        window.IsVisible = false;
         window.RaiseClosed();
     }
 
@@ -217,6 +249,8 @@ public sealed class ManagedWindowSlotTests
         public event EventHandler? Closed;
 
         public bool IsUsable { get; set; }
+
+        public bool IsVisible { get; set; }
 
         public bool ThrowOnShow { get; init; }
 

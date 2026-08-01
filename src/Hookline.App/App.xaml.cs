@@ -1,11 +1,8 @@
 using System.Globalization;
-using System.IO;
 using System.Windows;
 using Hookline.App.Catalog;
-using Hookline.App.Mixing;
 using Hookline.Audio;
 using Hookline.NowPlaying;
-using FileOpenDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace Hookline.App;
 
@@ -18,26 +15,14 @@ public partial class App : System.Windows.Application
     private IClipExporter? _exporter;
     private OutputFolderSettings? _outputSettings;
     private ClipCatalogService? _catalogService;
-    private ClipRetrimLauncher? _retrimLauncher;
     private LocalAudioFileImporter? _localAudioFileImporter;
     private YoutubeVideoAudioSource? _youtubeVideoAudioSource;
     private IUrlAudioImportService? _urlAudioImportService;
     private StemIsolationService? _stemIsolationService;
     private GlobalHotkey? _hotkey;
     private TrayIcon? _trayIcon;
-    private readonly ManagedWindowSlot<TrimWindow> _trimWindowSlot =
-        new();
-    private readonly ManagedWindowSlot<ClipCatalogWindow>
-        _catalogWindowSlot = new();
-    private readonly ManagedWindowSlot<UrlImportWindow>
-        _urlImportWindowSlot = new();
-    private readonly ManagedWindowSlot<MixWindow> _mixWindowSlot =
-        new();
-    private readonly Dictionary<
-        long,
-        ManagedWindowSlot<TrimWindow>
-    > _importWindowSlots = [];
-    private bool _isImporting;
+    private readonly ManagedWindowSlot<WorkspaceWindow>
+        _workspaceWindowSlot = new();
     private bool _isExiting;
 
     protected override async void OnStartup(StartupEventArgs args)
@@ -53,11 +38,7 @@ public partial class App : System.Windows.Application
         _stemIsolationService =
             StemIsolationService.CreateDefault();
         _trayIcon = new TrayIcon(
-            ShowTrimWindow,
-            ImportAudioFile,
-            ShowUrlImportWindow,
-            ShowMixWindow,
-            ShowCatalogWindow,
+            ShowWorkspace,
             ExitApplication
         );
         _hotkey = new GlobalHotkey();
@@ -78,14 +59,6 @@ public partial class App : System.Windows.Application
         _exporter = new CatalogingClipExporter(
             new Mp3ClipExporter(),
             _catalogService
-        );
-        _retrimLauncher = new ClipRetrimLauncher(
-            _captureService,
-            _exporter,
-            _outputSettings,
-            _stemIsolationService,
-            _localAudioFileImporter,
-            Dispatcher
         );
 
         try
@@ -129,29 +102,13 @@ public partial class App : System.Windows.Application
     }
 
     private void OnHotkeyPressed(object? sender, EventArgs args) =>
-        ShowTrayActions();
+        ShowWorkspace();
 
-    private void ShowTrayActions()
+    private void ShowWorkspace()
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(ShowTrayActions);
-            return;
-        }
-
-        if (_isExiting)
-        {
-            return;
-        }
-
-        _trayIcon?.ShowMenu();
-    }
-
-    private void ShowTrimWindow()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.BeginInvoke(ShowTrimWindow);
+            _ = Dispatcher.BeginInvoke(ShowWorkspace);
             return;
         }
 
@@ -161,147 +118,9 @@ public partial class App : System.Windows.Application
         }
 
         if (
-            _trimWindowSlot.TryActivateExisting(
-                IsWindowUsable,
-                RestoreAndActivateWindow,
-                CloseWindow
-            )
-        )
-        {
-            return;
-        }
-
-        if (
-            _watcher?.CurrentTrack is not { } track
-            || _captureService is null
-            || _exporter is null
-            || _outputSettings is null
-        )
-        {
-            _trayIcon?.ShowInfo(AppStrings.NoCurrentTrack);
-            return;
-        }
-
-        try
-        {
-            var session = new TrimSession
-            {
-                Track = track,
-                Snapshot = _captureService.Query(track.InstanceId),
-            };
-            _trimWindowSlot.TryShowNew(
-                () => CreateTrimWindow(session),
-                SubscribeWindowClosed,
-                ShowAndActivateWindow,
-                CloseWindow
-            );
-        }
-        catch (Exception exception)
-        {
-            _trayIcon?.ShowError(
-                $"{AppStrings.OpenFailed} {exception.Message}"
-            );
-        }
-    }
-
-    private async void ImportAudioFile()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            _ = Dispatcher.BeginInvoke(ImportAudioFile);
-            return;
-        }
-
-        if (_isExiting)
-        {
-            return;
-        }
-
-        if (_isImporting)
-        {
-            _trayIcon?.ShowInfo(AppStrings.ImportAlreadyRunning);
-            return;
-        }
-
-        if (
-            _localAudioFileImporter is null
-            || _exporter is null
-            || _outputSettings is null
-        )
-        {
-            _trayIcon?.ShowError(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    AppStrings.ImportFailed,
-                    AppStrings.CatalogUnavailable
-                )
-            );
-            return;
-        }
-
-        var dialog = new FileOpenDialog
-        {
-            Title = AppStrings.ChooseAudioFile,
-            Filter = AppStrings.AudioFileFilter,
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        _isImporting = true;
-        try
-        {
-            var imported = await _localAudioFileImporter.ImportAsync(
-                dialog.FileName,
-                _startupCancellation.Token
-            );
-            if (_isExiting)
-            {
-                return;
-            }
-
-            ShowImportedTrimWindow(imported);
-        }
-        catch (OperationCanceledException)
-            when (_startupCancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            _trayIcon?.ShowError(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    AppStrings.ImportFailed,
-                    exception.Message
-                )
-            );
-        }
-        finally
-        {
-            _isImporting = false;
-        }
-    }
-
-    private void ShowUrlImportWindow()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            _ = Dispatcher.BeginInvoke(ShowUrlImportWindow);
-            return;
-        }
-
-        if (_isExiting)
-        {
-            return;
-        }
-
-        if (
-            _urlImportWindowSlot.TryActivateExisting(
-                IsWindowUsable,
-                RestoreAndActivateWindow,
+            _workspaceWindowSlot.TryActivateExisting(
+                window => window.IsLoaded,
+                RestoreWorkspaceWindow,
                 window => window.CloseForShutdown()
             )
         )
@@ -310,31 +129,33 @@ public partial class App : System.Windows.Application
         }
 
         if (
-            _urlAudioImportService is null
-            || _outputSettings is null
+            _captureService is null
+            || _localAudioFileImporter is null
+            || _urlAudioImportService is null
+            || _catalogService is null
             || _exporter is null
+            || _outputSettings is null
+            || _stemIsolationService is null
         )
         {
             _trayIcon?.ShowError(AppStrings.CatalogUnavailable);
             return;
         }
 
-        var showNotice =
-            _outputSettings.ShouldShowUrlImportNotice;
         try
         {
-            _urlImportWindowSlot.TryShowNew(
+            _workspaceWindowSlot.TryShowNew(
                 () =>
-                {
-                    var viewModel = new UrlImportViewModel(
+                    new WorkspaceWindow(
+                        CreateCurrentCaptureSession,
+                        _captureService,
+                        _localAudioFileImporter,
                         _urlAudioImportService,
-                        showNotice
-                    );
-                    var window = new UrlImportWindow(viewModel);
-                    window.ImportCompleted +=
-                        OnUrlImportCompleted;
-                    return window;
-                },
+                        _catalogService,
+                        _exporter,
+                        _outputSettings,
+                        _stemIsolationService
+                    ),
                 SubscribeWindowClosed,
                 ShowAndActivateWindow,
                 window => window.CloseForShutdown()
@@ -345,111 +166,39 @@ public partial class App : System.Windows.Application
             _trayIcon?.ShowError(
                 string.Format(
                     CultureInfo.CurrentCulture,
-                    AppStrings.ImportFailed,
-                    exception.Message
-                )
-            );
-            return;
-        }
-
-        if (showNotice)
-        {
-            try
-            {
-                _outputSettings.MarkUrlImportNoticeShown();
-            }
-            catch (Exception exception)
-                when (exception is IOException
-                    or UnauthorizedAccessException)
-            {
-                _trayIcon?.ShowError(
-                    string.Format(
-                        CultureInfo.CurrentCulture,
-                        AppStrings.UrlImportNoticeSaveFailed,
-                        exception.Message
-                    )
-                );
-            }
-        }
-    }
-
-    private void OnUrlImportCompleted(
-        object? sender,
-        UrlImportCompletedEventArgs args
-    )
-    {
-        try
-        {
-            ShowImportedTrimWindow(args.ImportedAudio);
-        }
-        catch (Exception exception)
-        {
-            _trayIcon?.ShowError(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    AppStrings.ImportFailed,
+                    AppStrings.WorkspaceOpenFailed,
                     exception.Message
                 )
             );
         }
     }
 
-    private void ShowImportedTrimWindow(
-        ImportedAudioFile imported
-    )
-    {
-        ArgumentNullException.ThrowIfNull(imported);
-        var session = ImportedAudioTrimSessionFactory.Create(imported);
-        var trackInstanceId = session.Track.InstanceId;
-        var slot = new ManagedWindowSlot<TrimWindow>();
-        _importWindowSlots.Add(trackInstanceId, slot);
-        try
-        {
-            slot.TryShowNew(
-                () => CreateTrimWindow(session),
-                SubscribeWindowClosed,
-                ShowAndActivateWindow,
-                CloseWindow,
-                _ =>
-                    _importWindowSlots.Remove(trackInstanceId)
-            );
-        }
-        catch
-        {
-            _importWindowSlots.Remove(trackInstanceId);
-            throw;
-        }
-    }
-
-    private TrimWindow CreateTrimWindow(TrimSession session)
+    private TrimSession? CreateCurrentCaptureSession()
     {
         if (
-            _exporter is null
-            || _outputSettings is null
-            || _stemIsolationService is null
+            _watcher?.CurrentTrack is not { } track
+            || _captureService is null
         )
         {
-            throw new InvalidOperationException(
-                AppStrings.OpenFailed
-            );
+            return null;
         }
 
-        var preview = new AudioPreviewPlayer(Dispatcher);
-        var viewModel = new TrimViewModel(
-            session,
-            _exporter,
-            preview,
-            _outputSettings,
-            _stemIsolationService
-        );
-        return new TrimWindow(viewModel);
+        return new TrimSession
+        {
+            Track = track,
+            Snapshot = _captureService.Query(track.InstanceId),
+        };
     }
 
-    private static bool IsWindowUsable(Window window) =>
-        window.IsLoaded && window.IsVisible;
-
-    private static void RestoreAndActivateWindow(Window window)
+    private static void RestoreWorkspaceWindow(
+        WorkspaceWindow window
+    )
     {
+        if (!window.IsVisible)
+        {
+            window.Show();
+        }
+
         if (window.WindowState == WindowState.Minimized)
         {
             window.WindowState = WindowState.Normal;
@@ -468,9 +217,6 @@ public partial class App : System.Windows.Application
         Window window,
         EventHandler handler
     ) => window.Closed += handler;
-
-    private static void CloseWindow(Window window) =>
-        window.Close();
 
     private void OnCaptureStatusChanged(
         object? sender,
@@ -496,137 +242,6 @@ public partial class App : System.Windows.Application
         });
     }
 
-    private void ShowCatalogWindow()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            _ = Dispatcher.BeginInvoke(ShowCatalogWindow);
-            return;
-        }
-
-        if (_isExiting)
-        {
-            return;
-        }
-
-        if (
-            _catalogWindowSlot.TryActivateExisting(
-                IsWindowUsable,
-                RestoreAndActivateWindow,
-                CloseWindow
-            )
-        )
-        {
-            return;
-        }
-
-        if (
-            _catalogService is null
-            || _retrimLauncher is null
-        )
-        {
-            _trayIcon?.ShowError(AppStrings.CatalogUnavailable);
-            return;
-        }
-
-        try
-        {
-            _catalogWindowSlot.TryShowNew(
-                () =>
-                {
-                    var player = new CatalogAudioPlayer(Dispatcher);
-                    var viewModel =
-                        new ClipCatalogWindowViewModel(
-                            _catalogService,
-                            player,
-                            _retrimLauncher
-                        );
-                    return new ClipCatalogWindow(
-                        viewModel,
-                        _catalogService
-                    );
-                },
-                SubscribeWindowClosed,
-                ShowAndActivateWindow,
-                CloseWindow
-            );
-        }
-        catch (Exception exception)
-        {
-            _trayIcon?.ShowError(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    AppStrings.CatalogOpenFailed,
-                    exception.Message
-                )
-            );
-        }
-    }
-
-    private void ShowMixWindow()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            _ = Dispatcher.BeginInvoke(ShowMixWindow);
-            return;
-        }
-
-        if (_isExiting)
-        {
-            return;
-        }
-
-        if (
-            _mixWindowSlot.TryActivateExisting(
-                IsWindowUsable,
-                RestoreAndActivateWindow,
-                CloseWindow
-            )
-        )
-        {
-            return;
-        }
-
-        if (
-            _catalogService is null
-            || _localAudioFileImporter is null
-            || _exporter is null
-            || _outputSettings is null
-        )
-        {
-            _trayIcon?.ShowError(AppStrings.CatalogUnavailable);
-            return;
-        }
-
-        try
-        {
-            _mixWindowSlot.TryShowNew(
-                () =>
-                    new MixWindow(
-                        new MixWindowViewModel(
-                            _catalogService,
-                            _localAudioFileImporter,
-                            _exporter,
-                            _outputSettings
-                        )
-                    ),
-                SubscribeWindowClosed,
-                ShowAndActivateWindow,
-                CloseWindow
-            );
-        }
-        catch (Exception exception)
-        {
-            _trayIcon?.ShowError(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    AppStrings.MixOpenFailed,
-                    exception.Message
-                )
-            );
-        }
-    }
-
     private async void ExitApplication()
     {
         if (!Dispatcher.CheckAccess())
@@ -642,19 +257,9 @@ public partial class App : System.Windows.Application
 
         _isExiting = true;
         _startupCancellation.Cancel();
-        _trimWindowSlot.CloseCurrent(CloseWindow);
-        _catalogWindowSlot.CloseCurrent(CloseWindow);
-        _mixWindowSlot.CloseCurrent(CloseWindow);
-        _urlImportWindowSlot.CloseCurrent(
+        _workspaceWindowSlot.CloseCurrent(
             window => window.CloseForShutdown()
         );
-        foreach (var slot in _importWindowSlots.Values.ToArray())
-        {
-            slot.CloseCurrent(CloseWindow);
-        }
-
-        _importWindowSlots.Clear();
-        _retrimLauncher?.CloseAll();
         _hotkey?.Dispose();
         _hotkey = null;
 

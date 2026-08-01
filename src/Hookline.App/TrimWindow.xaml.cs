@@ -17,6 +17,8 @@ public partial class TrimWindow : Window
     private static readonly TimeSpan CoarseNudge =
         TimeSpan.FromSeconds(1);
     private readonly TrimViewModel _viewModel;
+    private bool _isHosted;
+    private bool _disposed;
 
     public TrimWindow(TrimViewModel viewModel)
     {
@@ -35,10 +37,42 @@ public partial class TrimWindow : Window
         LoadAlbumArt();
     }
 
-    protected override void OnClosed(EventArgs args)
+    internal event EventHandler? HostCloseRequested;
+
+    internal FrameworkElement TakeContentForHost()
     {
+        if (Content is not FrameworkElement content)
+        {
+            throw new InvalidOperationException(
+                AppStrings.WorkspaceViewUnavailable
+            );
+        }
+
+        _isHosted = true;
+        HeaderBar.Visibility = Visibility.Collapsed;
+        Content = null;
+        content.DataContext = _viewModel;
+        return content;
+    }
+
+    internal void DisposeHosted()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.Dispose();
+    }
+
+    internal void HandleHostedPreviewKeyDown(KeyEventArgs args) =>
+        HandlePreviewKeyDown(args);
+
+    protected override void OnClosed(EventArgs args)
+    {
+        DisposeHosted();
         base.OnClosed(args);
     }
 
@@ -226,7 +260,7 @@ public partial class TrimWindow : Window
         {
             var model = _viewModel.SelectedStemModel;
             var response = System.Windows.MessageBox.Show(
-                this,
+                Window.GetWindow(Waveform) ?? this,
                 string.Format(
                     CultureInfo.CurrentCulture,
                     AppStrings.DownloadStemModelPrompt,
@@ -292,7 +326,16 @@ public partial class TrimWindow : Window
     private void OnCloseClick(
         object sender,
         RoutedEventArgs args
-    ) => Close();
+    )
+    {
+        if (_isHosted)
+        {
+            HostCloseRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        Close();
+    }
 
     private void OnDismissSpotifyHintClick(
         object sender,
@@ -306,19 +349,30 @@ public partial class TrimWindow : Window
     {
         if (args.ChangedButton == MouseButton.Left)
         {
-            DragMove();
+            (Window.GetWindow((DependencyObject)sender) ?? this)
+                .DragMove();
         }
     }
 
     private void OnPreviewKeyDown(
         object sender,
         KeyEventArgs args
-    )
+    ) => HandlePreviewKeyDown(args);
+
+    private void HandlePreviewKeyDown(KeyEventArgs args)
     {
         if (args.Key == Key.Escape)
         {
             args.Handled = true;
-            Close();
+            if (_isHosted)
+            {
+                HostCloseRequested?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                Close();
+            }
+
             return;
         }
 

@@ -7,6 +7,8 @@ public partial class UrlImportWindow : Window
 {
     private readonly UrlImportViewModel _viewModel;
     private bool _allowClose;
+    private bool _isHosted;
+    private bool _disposed;
 
     internal UrlImportWindow(UrlImportViewModel viewModel)
     {
@@ -20,11 +22,47 @@ public partial class UrlImportWindow : Window
     internal event EventHandler<UrlImportCompletedEventArgs>?
         ImportCompleted;
 
+    internal event EventHandler? HostCloseRequested;
+
+    internal FrameworkElement TakeContentForHost()
+    {
+        if (Content is not FrameworkElement content)
+        {
+            throw new InvalidOperationException(
+                AppStrings.WorkspaceViewUnavailable
+            );
+        }
+
+        _isHosted = true;
+        Content = null;
+        content.DataContext = _viewModel;
+        _ = Dispatcher.BeginInvoke(() => UrlTextBox.Focus());
+        return content;
+    }
+
+    internal void DisposeHosted()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _viewModel.Dispose();
+    }
+
     public void CloseForShutdown()
     {
         _allowClose = true;
         _viewModel.Cancel();
-        Close();
+        if (_isHosted)
+        {
+            DisposeHosted();
+        }
+        else
+        {
+            Close();
+        }
     }
 
     protected override void OnClosing(CancelEventArgs args)
@@ -40,7 +78,7 @@ public partial class UrlImportWindow : Window
 
     protected override void OnClosed(EventArgs args)
     {
-        _viewModel.Dispose();
+        DisposeHosted();
         base.OnClosed(args);
     }
 
@@ -64,6 +102,11 @@ public partial class UrlImportWindow : Window
             this,
             new UrlImportCompletedEventArgs(imported)
         );
+        if (_isHosted)
+        {
+            return;
+        }
+
         _allowClose = true;
         Close();
     }
@@ -85,7 +128,14 @@ public partial class UrlImportWindow : Window
         }
 
         _allowClose = true;
-        Close();
+        if (_isHosted)
+        {
+            HostCloseRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            Close();
+        }
     }
 
     private void OnDismissNoticeClick(

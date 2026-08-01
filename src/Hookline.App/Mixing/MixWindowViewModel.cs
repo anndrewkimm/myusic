@@ -22,6 +22,16 @@ public sealed class MixWindowViewModel
         new(StringComparer.OrdinalIgnoreCase);
     private ImportedAudioFile? _firstSource;
     private ImportedAudioFile? _secondSource;
+    private Func<
+        CancellationToken,
+        Task<AudioBufferSnapshot?>
+    >? _firstRenderer;
+    private Func<
+        CancellationToken,
+        Task<AudioBufferSnapshot?>
+    >? _secondRenderer;
+    private Func<bool>? _firstCanRender;
+    private Func<bool>? _secondCanRender;
     private double _firstVolumePercent = 100;
     private double _secondVolumePercent = 100;
     private string _exportTitle = string.Empty;
@@ -55,6 +65,9 @@ public sealed class MixWindowViewModel
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<MixSourceChangedEventArgs>?
+        SourceChanged;
 
     public ObservableCollection<MixCatalogSource> CatalogSources
     {
@@ -178,6 +191,7 @@ public sealed class MixWindowViewModel
         HasFirstSource
         && HasSecondSource
         && !string.IsNullOrWhiteSpace(ExportTitle)
+        && CanRenderSources
         && !IsBusy;
 
     public string ExportButtonText =>
@@ -263,18 +277,40 @@ public sealed class MixWindowViewModel
             return;
         }
 
+        if (!CanRenderSources)
+        {
+            StatusMessage = AppStrings.WorkspaceMixSourceBusy;
+            return;
+        }
+
         SetExporting(true);
         StatusMessage = string.Empty;
         try
         {
             var first = _firstSource;
             var second = _secondSource;
+            var firstSnapshot = await RenderSourceAsync(
+                MixSourceSlot.First,
+                first,
+                _lifetimeCancellation.Token
+            );
+            var secondSnapshot = await RenderSourceAsync(
+                MixSourceSlot.Second,
+                second,
+                _lifetimeCancellation.Token
+            );
+            if (firstSnapshot is null || secondSnapshot is null)
+            {
+                StatusMessage = AppStrings.MixChooseTwoSources;
+                return;
+            }
+
             var mixed = await Task.Run(
                 () =>
                     TwoSourceAudioMixer.Mix(
-                        first.Snapshot,
+                        firstSnapshot,
                         FirstVolumePercent / 100d,
-                        second.Snapshot,
+                        secondSnapshot,
                         SecondVolumePercent / 100d,
                         _lifetimeCancellation.Token
                     ),
@@ -338,6 +374,8 @@ public sealed class MixWindowViewModel
         if (slot == MixSourceSlot.First)
         {
             _firstSource = source;
+            _firstRenderer = null;
+            _firstCanRender = null;
             OnPropertyChanged(nameof(HasFirstSource));
             OnPropertyChanged(nameof(FirstSourceTitle));
             OnPropertyChanged(nameof(FirstSourceDetail));
@@ -345,6 +383,8 @@ public sealed class MixWindowViewModel
         else
         {
             _secondSource = source;
+            _secondRenderer = null;
+            _secondCanRender = null;
             OnPropertyChanged(nameof(HasSecondSource));
             OnPropertyChanged(nameof(SecondSourceTitle));
             OnPropertyChanged(nameof(SecondSourceDetail));
@@ -353,7 +393,36 @@ public sealed class MixWindowViewModel
         RefreshDefaultMetadata();
         StatusMessage = string.Empty;
         OnPropertyChanged(nameof(CanExport));
+        SourceChanged?.Invoke(
+            this,
+            new MixSourceChangedEventArgs(slot, source)
+        );
     }
+
+    internal void SetSourceRenderer(
+        MixSourceSlot slot,
+        Func<CancellationToken, Task<AudioBufferSnapshot?>> renderer,
+        Func<bool> canRender
+    )
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(canRender);
+        if (slot == MixSourceSlot.First)
+        {
+            _firstRenderer = renderer;
+            _firstCanRender = canRender;
+        }
+        else
+        {
+            _secondRenderer = renderer;
+            _secondCanRender = canRender;
+        }
+
+        OnPropertyChanged(nameof(CanExport));
+    }
+
+    internal void NotifySourceRendererStateChanged() =>
+        OnPropertyChanged(nameof(CanExport));
 
     private async Task LoadSourceAsync(
         MixSourceSlot slot,
@@ -425,6 +494,24 @@ public sealed class MixWindowViewModel
                 .Distinct(StringComparer.OrdinalIgnoreCase)
         );
     }
+
+    private Task<AudioBufferSnapshot?> RenderSourceAsync(
+        MixSourceSlot slot,
+        ImportedAudioFile source,
+        CancellationToken cancellationToken
+    )
+    {
+        var renderer = slot == MixSourceSlot.First
+            ? _firstRenderer
+            : _secondRenderer;
+        return renderer is null
+            ? Task.FromResult<AudioBufferSnapshot?>(source.Snapshot)
+            : renderer(cancellationToken);
+    }
+
+    private bool CanRenderSources =>
+        (_firstCanRender?.Invoke() ?? true)
+        && (_secondCanRender?.Invoke() ?? true);
 
     private void SetLoadingSource(bool value)
     {

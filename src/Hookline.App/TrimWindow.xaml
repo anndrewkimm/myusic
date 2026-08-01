@@ -36,6 +36,7 @@
             </Grid.RowDefinitions>
 
             <Grid
+                x:Name="HeaderBar"
                 Grid.Row="0"
                 Margin="-4,-8,-4,12"
                 Background="Transparent"
@@ -47,6 +48,7 @@
                     Foreground="{StaticResource MutedTextBrush}"
                     Text="{x:Static local:AppStrings.WindowTitle}" />
                 <Button
+                    x:Name="CloseButton"
                     HorizontalAlignment="Right"
                     Width="34"
                     Height="30"

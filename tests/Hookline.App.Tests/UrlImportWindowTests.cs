@@ -7,6 +7,7 @@ using System.IO;
 using Hookline.App.Catalog;
 using Hookline.App.Mixing;
 using Hookline.Audio;
+using Hookline.NowPlaying;
 
 namespace Hookline.App.Tests;
 
@@ -48,6 +49,7 @@ public sealed class UrlImportWindowTests
                 }
 
                 ConstructMixWindow();
+                ConstructWorkspaceWindow();
             }
             catch (Exception exception)
             {
@@ -120,6 +122,54 @@ public sealed class UrlImportWindowTests
         }
     }
 
+    private static void ConstructWorkspaceWindow()
+    {
+        var temporaryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hookline-workspace-window-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(temporaryDirectory);
+        var watcher = new UnusedNowPlayingWatcher();
+        var capture = new HooklineAudioCaptureService(watcher);
+        try
+        {
+            var catalog = new ClipCatalogService(
+                new ClipCatalogRepository(
+                    Path.Combine(temporaryDirectory, "clips.db")
+                )
+            );
+            var settings = new OutputFolderSettings(
+                Path.Combine(temporaryDirectory, "settings.json"),
+                new NoSpotifySourceDetector(),
+                Path.Combine(temporaryDirectory, "exports")
+            );
+            var window = new WorkspaceWindow(
+                () => null,
+                capture,
+                new LocalAudioFileImporter(),
+                new UnusedImportService(),
+                catalog,
+                new UnusedExporter(),
+                settings,
+                new UnusedStemIsolationService()
+            );
+            if (window.FindName("HomeView") is null)
+            {
+                throw new InvalidOperationException(
+                    "The workspace shell did not initialize."
+                );
+            }
+
+            window.CloseForShutdown();
+        }
+        finally
+        {
+            capture.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            watcher.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            Directory.Delete(temporaryDirectory, recursive: true);
+        }
+    }
+
     private sealed class UnusedImportService :
         IUrlAudioImportService
     {
@@ -149,5 +199,85 @@ public sealed class UrlImportWindowTests
         ISpotifyLocalFilesSourceDetector
     {
         public string? DetectSourceFolder() => null;
+    }
+
+    private sealed class UnusedStemIsolationService :
+        IStemIsolationService
+    {
+        public StemModelDescriptor GetModel(StemSeparationMode mode) =>
+            throw new NotSupportedException();
+
+        public Task<bool> IsModelAvailableAsync(
+            StemSeparationMode mode,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
+
+        public Task DownloadModelAsync(
+            StemSeparationMode mode,
+            IProgress<double>? progress = null,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
+
+        public Task<SeparatedStemSet> SeparateAsync(
+            AudioBufferSnapshot selection,
+            StemSeparationMode mode,
+            IProgress<double>? progress = null,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedNowPlayingWatcher : INowPlayingWatcher
+    {
+        public event EventHandler<TrackChangedEventArgs>? TrackChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<PlaybackStateChangedEventArgs>?
+            PlaybackStateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<PlaybackTimelineChangedEventArgs>?
+            PlaybackTimelineChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<MediaSourceChangedEventArgs>?
+            SourceChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<WatcherStatusChangedEventArgs>?
+            StatusChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public NowPlayingTrack? CurrentTrack => null;
+
+        public PlaybackState PlaybackState => PlaybackState.Unavailable;
+
+        public PlaybackTimelineSnapshot? CurrentTimeline => null;
+
+        public MediaSourceIdentity? CurrentSource => null;
+
+        public Task StartAsync(
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public Task StopAsync(
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
