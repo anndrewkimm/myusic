@@ -1,5 +1,5 @@
 ---
-status: IN_PROGRESS
+status: BLOCKED
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 004, 008, 009, 014, 022]
 ---
@@ -364,3 +364,39 @@ app open, same bar every other spec this session has been held to.
 
 Back to `IN_PROGRESS` for the dead-code removal and Debug re-verification
 — both small, neither calls the actual redesign into question.
+
+## Review fixes shipped (2026-07-31)
+
+- Gave the Library sort picker a fully explicit dark collapsed/dropdown
+  template and gave Play, Re-trim, Show in folder, Rename, Save, and Cancel
+  explicit dark backgrounds. Delete retains its existing red treatment.
+- Added WPF construction coverage that verifies the Library action-button
+  background and sort-picker template instead of relying on the Windows
+  theme defaults.
+- Removed the superseded `ClipRetrimLauncher`; the workspace launcher is now
+  the only production catalog re-edit path.
+- Clean Debug and Release verification both pass 182/182 tests with zero
+  warnings after stopping the running app instance.
+
+## Open questions (owner mixing feedback, 2026-07-31)
+
+The owner says the present Mix setup is not beginner-friendly and that the
+path to hearing/creating the combined result is unclear. The example given
+was "the background/instrumental from one song plus the lyrics/vocals from
+another," but the same feedback also said the clips should play "not
+simultaneously." Those describe different output models, so implementation
+is blocked on the following UX decisions rather than guessing silently:
+
+1. Should the primary beginner flow create a concurrent **stem mashup**
+   (vocals from A over the instrumental stems from B), a **sequential
+   arrangement** (A followed by B on a simple timeline), or expose both as
+   clearly named recipes? The stem-mashup interpretation best matches the
+   concrete vocals/instrumental example.
+2. For a stem mashup, should choosing a recipe automatically run stem
+   isolation for both sources and set the stem gains, or should it guide the
+   user through the two existing source editors? Automatic setup is simpler
+   but entails model-download consent and a potentially long first run.
+3. Is a combined **Preview mix** action required before the final **Export
+   combined audio** action? The current screen only exposes `Export mixed
+   MP3` at the bottom of Mix setup and has no preview of both processed
+   sources together, which is the main discoverability gap observed here.

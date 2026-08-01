@@ -23,6 +23,102 @@
             <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="MinWidth" Value="58" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="#242A36" />
+            <Setter Property="BorderBrush" Value="#353D4B" />
+        </Style>
+
+        <Style x:Key="CatalogComboBox" TargetType="ComboBox">
+            <Setter Property="Height" Value="31" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="#242A36" />
+            <Setter Property="BorderBrush" Value="#353D4B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MaxDropDownHeight" Value="240" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border
+                                x:Name="ComboBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="28" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter
+                                        Margin="9,0,4,0"
+                                        VerticalAlignment="Center"
+                                        Content="{TemplateBinding SelectionBoxItem}"
+                                        ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                        ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                        ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                        IsHitTestVisible="False" />
+                                    <Path
+                                        Grid.Column="1"
+                                        Width="8"
+                                        Height="5"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Data="M 0 0 L 4 4 L 8 0 Z"
+                                        Fill="{TemplateBinding Foreground}" />
+                                </Grid>
+                            </Border>
+                            <ToggleButton
+                                x:Name="DropDownToggle"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ClickMode="Press"
+                                Focusable="False"
+                                IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup
+                                x:Name="PART_Popup"
+                                AllowsTransparency="True"
+                                Focusable="False"
+                                IsOpen="{TemplateBinding IsDropDownOpen}"
+                                Placement="Bottom"
+                                PopupAnimation="Fade">
+                                <Border
+                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    Margin="0,3,0,0"
+                                    Background="#242A36"
+                                    BorderBrush="#353D4B"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                    <ScrollViewer CanContentScroll="True">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter
+                                    TargetName="ComboBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter
+                                    TargetName="ComboBorder"
+                                    Property="Opacity"
+                                    Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -79,42 +175,43 @@
                     x:Name="SortPicker"
                     DockPanel.Dock="Left"
                     Width="135"
-                    Height="31"
-                    Padding="8,4"
-                    Background="#242A36"
-                    Foreground="{StaticResource PrimaryTextBrush}"
-                    BorderBrush="#353D4B"
+                    Style="{StaticResource CatalogComboBox}"
                     SelectedIndex="0"
                     SelectionChanged="OnSortChanged">
-                    <ComboBox.Resources>
-                        <SolidColorBrush
-                            x:Key="{x:Static SystemColors.WindowBrushKey}"
-                            Color="#242A36" />
-                        <SolidColorBrush
-                            x:Key="{x:Static SystemColors.WindowTextBrushKey}"
-                            Color="#F5F7FA" />
-                        <SolidColorBrush
-                            x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                            Color="#365E51" />
-                        <SolidColorBrush
-                            x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
-                            Color="#F5F7FA" />
+                    <ComboBox.ItemContainerStyle>
                         <Style TargetType="ComboBoxItem">
-                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="Padding" Value="9,7" />
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
                             <Setter Property="Background" Value="#242A36" />
-                            <Setter
-                                Property="Foreground"
-                                Value="{StaticResource PrimaryTextBrush}" />
-                            <Style.Triggers>
-                                <Trigger Property="IsHighlighted" Value="True">
-                                    <Setter Property="Background" Value="#365E51" />
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#216B53" />
-                                </Trigger>
-                            </Style.Triggers>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ComboBoxItem">
+                                        <Border
+                                            x:Name="ItemBorder"
+                                            Padding="{TemplateBinding Padding}"
+                                            Background="{TemplateBinding Background}">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter
+                                                    TargetName="ItemBorder"
+                                                    Property="Background"
+                                                    Value="#365E51" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter
+                                                    TargetName="ItemBorder"
+                                                    Property="Background"
+                                                    Value="#216B53" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
-                    </ComboBox.Resources>
+                    </ComboBox.ItemContainerStyle>
                     <ComboBoxItem
                         Content="{x:Static local:AppStrings.CatalogSortRecent}" />
                     <ComboBoxItem

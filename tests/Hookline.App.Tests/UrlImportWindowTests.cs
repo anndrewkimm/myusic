@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.IO;
 using Hookline.App.Catalog;
 using Hookline.App.Mixing;
@@ -49,6 +50,7 @@ public sealed class UrlImportWindowTests
                 }
 
                 ConstructMixWindow();
+                ConstructCatalogWindow();
                 ConstructWorkspaceWindow();
             }
             catch (Exception exception)
@@ -170,6 +172,65 @@ public sealed class UrlImportWindowTests
         }
     }
 
+    private static void ConstructCatalogWindow()
+    {
+        var temporaryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hookline-catalog-window-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(temporaryDirectory);
+        try
+        {
+            var catalog = new ClipCatalogService(
+                new ClipCatalogRepository(
+                    Path.Combine(temporaryDirectory, "clips.db")
+                )
+            );
+            var viewModel = new ClipCatalogWindowViewModel(
+                catalog,
+                new CatalogAudioPlayer(Dispatcher.CurrentDispatcher),
+                new UnusedRetrimLauncher()
+            );
+            var window = new ClipCatalogWindow(viewModel, catalog);
+            var actionStyle = window.Resources[
+                "CatalogActionButton"
+            ] as Style;
+            var actionBackground = actionStyle?.Setters
+                .OfType<Setter>()
+                .FirstOrDefault(
+                    setter =>
+                        setter.Property
+                            == Control.BackgroundProperty
+                )
+                ?.Value as SolidColorBrush;
+            if (actionBackground?.Color != Color.FromRgb(0x24, 0x2A, 0x36))
+            {
+                throw new InvalidOperationException(
+                    "Catalog action buttons must use a dark background."
+                );
+            }
+
+            var sortPicker = window.FindName("SortPicker") as ComboBox;
+            if (
+                sortPicker?.Background is not SolidColorBrush sortBackground
+                || sortBackground.Color
+                    != Color.FromRgb(0x24, 0x2A, 0x36)
+                || sortPicker.Template is null
+            )
+            {
+                throw new InvalidOperationException(
+                    "The catalog sort picker must use its dark template."
+                );
+            }
+
+            window.DisposeHosted();
+        }
+        finally
+        {
+            Directory.Delete(temporaryDirectory, recursive: true);
+        }
+    }
+
     private sealed class UnusedImportService :
         IUrlAudioImportService
     {
@@ -279,5 +340,13 @@ public sealed class UrlImportWindowTests
         ) => Task.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class UnusedRetrimLauncher : IClipRetrimLauncher
+    {
+        public Task<ClipRetrimResult> OpenAsync(
+            ClipCatalogEntry entry,
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
     }
 }
