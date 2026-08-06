@@ -449,6 +449,17 @@ not a real open question.
      exposed as an adjustable control, same "sensible default, no new UI
      surface for something with one obviously-right answer" reasoning as
      the 15ms constant itself.
+   - **Crossfade curve, resolved by the planner**: equal-power
+     (constant-power, sine/cosine) taper, not a reuse of the existing
+     linear weight math in `ClipEffectsProcessor.AssembleLoops`. Linear
+     crossfades dip audibly in the middle because two mid-fade signals at
+     "half" linear gain sum to less perceived loudness than either
+     signal alone — inaudible at the existing 15ms same-song seam, but
+     this transition is 100x longer and between two unrelated songs, so
+     the dip would be a real, noticeable "the volume sags" defect.
+     Equal-power tapering is the standard fix for exactly this used by
+     essentially every DAW/DJ tool's crossfade — new math, not an
+     extension of the existing linear helper.
    - Output duration: A's (trimmed) length plus B's (trimmed) length,
      minus the crossfade overlap.
 4. **Preview mix, resolved by the planner**: add a "Preview mix" action
@@ -457,6 +468,31 @@ not a real open question.
    playback code, same infrastructure every other preview in this app
    already uses. Must be byte-identical to what "Export mixed MP3" would
    produce, same discipline held everywhere else in this codebase.
+5. **Output clipping safety, resolved by the planner**: `TwoSourceAudioMixer.Mix`
+   currently sums two sources by raw sample addition and hard-clamps the
+   result to 16-bit range (`TwoSourceAudioMixer.cs`) — that clamp is
+   silent digital-clipping distortion, not protection. It was a latent
+   risk in the original overlay recipe (gains go up to 150%, per
+   `StemRemixer.MaximumGain`, which `TwoSourceAudioMixer` reuses), but the
+   Mashup recipe's own default gains (vocal stem 100% + all non-vocal
+   stems 100%, i.e. two full-scale signals summed by default with no user
+   action) make audible clipping the expected outcome, not an edge case.
+   Add a single post-mix peak-safety pass to `TwoSourceAudioMixer.Mix`'s
+   output: if the combined buffer's true peak sample would exceed full
+   scale, scale the entire buffer down so the peak lands at a small fixed
+   safety ceiling (-1 dBFS) instead of hard-clipping. This is the same
+   "auto-gain-stage the master, don't let faders alone prevent clipping"
+   pattern every mixing tool uses (channel faders are for balance, a
+   limiter/ceiling on the sum is what actually prevents distortion) —
+   deterministic, content-aware (a quiet pairing is untouched; only a
+   pairing that would actually clip gets scaled), no new UI control, and
+   it protects the existing Custom/overlay recipe for free since it lives
+   in the shared mixer rather than being recipe-specific.
+   `TwoSourceAudioMixerTests.MixdownClampsInsteadOfOverflowing` currently
+   locks in the old hard-clip behavior as correct (asserts a summed
+   sample lands exactly at `short.MaxValue`/`short.MinValue`) — that test
+   needs to change to assert the new scaled-down, non-clipped result;
+   it's the target of this fix, not a regression to preserve.
 
 ## Recipe edge cases
 
@@ -476,6 +512,11 @@ not a real open question.
   before export, not a silent truncation.
 - Preview mix requested while a source is still mid-stem-separation —
   disabled/gated the same way Export already is, not a race.
+- Combined mix whose peak would exceed full scale — Mashup's own default
+  gains are the common case, but also reachable in Custom by pushing
+  either slider toward the 150% ceiling — scaled down to the -1 dBFS
+  safety ceiling rather than hard-clipped; a pairing that never would
+  have clipped is left untouched (no unnecessary volume reduction).
 
 ## Recipe acceptance criteria
 
@@ -488,13 +529,19 @@ not a real open question.
       one side, all non-vocal stems 100%/vocal muted on the other) —
       still freely adjustable afterward.
 - [ ] Selecting the "A then B" recipe joins the two (possibly trimmed)
-      sources sequentially with a fixed 1.5-second crossfade, distinct
-      from the existing 15ms same-song fade constant; output duration is
-      the sum of both trimmed lengths minus the overlap.
+      sources sequentially with a fixed 1.5-second **equal-power**
+      crossfade (not the existing linear same-song fade curve, and not
+      the existing 15ms constant); output duration is the sum of both
+      trimmed lengths minus the overlap.
 - [ ] A "Preview mix" action exists, plays through the existing
       `AudioPreviewPlayer`, and is byte-identical to what exporting would
       produce for the currently-selected recipe and settings.
 - [ ] Switching recipes re-applies that recipe's own defaults rather than
       leaving stale settings from a previously-selected recipe.
+- [ ] `TwoSourceAudioMixer.Mix`'s output never hard-clips: a combined
+      buffer whose peak would exceed full scale is scaled down to a
+      -1 dBFS ceiling instead, verified with a test that mixes two
+      full-scale sources at the Mashup recipe's default gains and asserts
+      no sample lands at `short.MinValue`/`short.MaxValue` from clipping.
 - [ ] All recipe edge cases above are handled explicitly, not silently
       ignored.
