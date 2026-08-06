@@ -41,13 +41,14 @@ public sealed class MixWindowViewModelTests : IDisposable
             _catalog,
             new LocalAudioFileImporter(),
             exporter,
-            _settings
+            _settings,
+            new RecordingPreviewPlayer()
         );
-        viewModel.SetSource(
+        await viewModel.SetSourceAsync(
             MixSourceSlot.First,
             CreateSource("First song", "First artist", 1_000)
         );
-        viewModel.SetSource(
+        await viewModel.SetSourceAsync(
             MixSourceSlot.Second,
             CreateSource("Second song", "Second artist", 2_000)
         );
@@ -85,11 +86,12 @@ public sealed class MixWindowViewModelTests : IDisposable
             _catalog,
             new LocalAudioFileImporter(),
             exporter,
-            _settings
+            _settings,
+            new RecordingPreviewPlayer()
         );
         var source = CreateSource("Thickened", "Artist", 4_000);
-        viewModel.SetSource(MixSourceSlot.First, source);
-        viewModel.SetSource(MixSourceSlot.Second, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.First, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.Second, source);
 
         await viewModel.ExportAsync();
 
@@ -110,11 +112,12 @@ public sealed class MixWindowViewModelTests : IDisposable
             _catalog,
             new LocalAudioFileImporter(),
             exporter,
-            _settings
+            _settings,
+            new RecordingPreviewPlayer()
         );
         var source = CreateSource("Original", "Artist", 100);
-        viewModel.SetSource(MixSourceSlot.First, source);
-        viewModel.SetSource(MixSourceSlot.Second, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.First, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.Second, source);
         var firstRenderCount = 0;
         var secondRenderCount = 0;
         viewModel.SetSourceRenderer(
@@ -163,11 +166,12 @@ public sealed class MixWindowViewModelTests : IDisposable
             _catalog,
             new LocalAudioFileImporter(),
             exporter,
-            _settings
+            _settings,
+            new RecordingPreviewPlayer()
         );
         var source = CreateSource("Busy", "Artist", 100);
-        viewModel.SetSource(MixSourceSlot.First, source);
-        viewModel.SetSource(MixSourceSlot.Second, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.First, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.Second, source);
         viewModel.SetSourceRenderer(
             MixSourceSlot.First,
             _ => Task.FromResult<AudioBufferSnapshot?>(source.Snapshot),
@@ -190,6 +194,227 @@ public sealed class MixWindowViewModelTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task MashupRecipeSeparatesAssignsRolesAndSwapsSources()
+    {
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            new RecordingExporter(
+                Path.Combine(_temporaryDirectory, "mashup.mp3")
+            ),
+            _settings,
+            new RecordingPreviewPlayer()
+        );
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.First,
+            CreateSource("Vocal song", "Singer", 1_000)
+        );
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.Second,
+            CreateSource("Backing song", "Band", 2_000)
+        );
+        var firstEditor = new RecordingEditor(
+            CreateSource("Edited vocals", "Singer", 1_000).Snapshot
+        );
+        var secondEditor = new RecordingEditor(
+            CreateSource("Edited backing", "Band", 2_000).Snapshot
+        );
+        viewModel.SetSourceEditor(
+            MixSourceSlot.First,
+            firstEditor.CreateIntegration()
+        );
+        viewModel.SetSourceEditor(
+            MixSourceSlot.Second,
+            secondEditor.CreateIntegration()
+        );
+
+        await viewModel.SelectRecipeAsync(
+            MixRecipe.VocalsAndInstrumentalMashup
+        );
+
+        Assert.True(viewModel.IsMashupRecipe);
+        Assert.Equal(AppStrings.MixVocalsSource, viewModel.FirstSourceLabel);
+        Assert.Equal(
+            AppStrings.MixInstrumentalSource,
+            viewModel.SecondSourceLabel
+        );
+        Assert.Equal(1, firstEditor.EnsureCount);
+        Assert.Equal(1, secondEditor.EnsureCount);
+        Assert.Equal(MixStemRole.VocalsOnly, firstEditor.LastRole);
+        Assert.Equal(
+            MixStemRole.InstrumentalOnly,
+            secondEditor.LastRole
+        );
+        Assert.True(viewModel.CanExport);
+
+        var swapped = false;
+        viewModel.SourcesSwapped += (_, _) => swapped = true;
+        viewModel.SwapSources();
+
+        Assert.True(swapped);
+        Assert.Equal("Backing song", viewModel.FirstSourceTitle);
+        Assert.Equal("Vocal song", viewModel.SecondSourceTitle);
+        Assert.Equal(MixStemRole.VocalsOnly, secondEditor.LastRole);
+        Assert.Equal(
+            MixStemRole.InstrumentalOnly,
+            firstEditor.LastRole
+        );
+
+        await viewModel.SelectRecipeAsync(MixRecipe.Custom);
+        Assert.Equal(MixStemRole.VocalsOnly, secondEditor.LastRole);
+        Assert.Equal(
+            MixStemRole.InstrumentalOnly,
+            firstEditor.LastRole
+        );
+        await viewModel.SelectRecipeAsync(MixRecipe.Sequential);
+        Assert.Equal(MixStemRole.FullMix, firstEditor.LastRole);
+        Assert.Equal(MixStemRole.FullMix, secondEditor.LastRole);
+        await viewModel.SelectRecipeAsync(
+            MixRecipe.VocalsAndInstrumentalMashup
+        );
+        Assert.Equal(MixStemRole.VocalsOnly, secondEditor.LastRole);
+        Assert.Equal(
+            MixStemRole.InstrumentalOnly,
+            firstEditor.LastRole
+        );
+    }
+
+    [Fact]
+    public async Task SequentialRecipeExportsAThenBWithEqualPowerOverlap()
+    {
+        var exporter = new RecordingExporter(
+            Path.Combine(_temporaryDirectory, "sequential.mp3")
+        );
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            exporter,
+            _settings,
+            new RecordingPreviewPlayer()
+        );
+        var format = new PcmAudioFormat(2, 16, 1);
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.First,
+            CreateSource(
+                "First",
+                "Artist A",
+                format,
+                [10_000, 10_000, 10_000, 10_000]
+            )
+        );
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.Second,
+            CreateSource(
+                "Second",
+                "Artist B",
+                format,
+                [10_000, 10_000, 10_000, 10_000]
+            )
+        );
+
+        await viewModel.SelectRecipeAsync(MixRecipe.Sequential);
+        await viewModel.ExportAsync();
+
+        Assert.NotNull(exporter.Selection);
+        Assert.Equal(
+            [10_000, 10_000, 14_142, 10_000, 10_000],
+            ReadSamples(exporter.Selection!.Audio.Span)
+        );
+    }
+
+    [Fact]
+    public async Task PreviewAndExportUseTheSameRenderedMixBytes()
+    {
+        var exporter = new RecordingExporter(
+            Path.Combine(_temporaryDirectory, "previewed.mp3")
+        );
+        var preview = new RecordingPreviewPlayer();
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            exporter,
+            _settings,
+            preview
+        );
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.First,
+            CreateSource("First", "Artist A", 1_000)
+        );
+        await viewModel.SetSourceAsync(
+            MixSourceSlot.Second,
+            CreateSource("Second", "Artist B", 2_000)
+        );
+
+        await viewModel.PreviewAsync();
+        var previewBytes = preview.Snapshot?.Audio.ToArray();
+        await viewModel.ExportAsync();
+
+        Assert.NotNull(previewBytes);
+        Assert.NotNull(exporter.Selection);
+        Assert.Equal(previewBytes, exporter.Selection!.Audio.ToArray());
+    }
+
+    [Fact]
+    public async Task MashupPreparationGatesPreviewAndExportUntilBothFinish()
+    {
+        using var viewModel = new MixWindowViewModel(
+            _catalog,
+            new LocalAudioFileImporter(),
+            new RecordingExporter(
+                Path.Combine(_temporaryDirectory, "gated.mp3")
+            ),
+            _settings,
+            new RecordingPreviewPlayer()
+        );
+        var source = CreateSource("Source", "Artist", 1_000);
+        await viewModel.SetSourceAsync(MixSourceSlot.First, source);
+        await viewModel.SetSourceAsync(MixSourceSlot.Second, source);
+        var firstReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var secondReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var firstHasStems = false;
+        var secondHasStems = false;
+        viewModel.SetSourceEditor(
+            MixSourceSlot.First,
+            CreateDelayedEditor(
+                source.Snapshot,
+                firstReady.Task,
+                () => firstHasStems,
+                () => firstHasStems = true
+            )
+        );
+        viewModel.SetSourceEditor(
+            MixSourceSlot.Second,
+            CreateDelayedEditor(
+                source.Snapshot,
+                secondReady.Task,
+                () => secondHasStems,
+                () => secondHasStems = true
+            )
+        );
+
+        var selecting = viewModel.SelectRecipeAsync(
+            MixRecipe.VocalsAndInstrumentalMashup
+        );
+        await Task.Yield();
+
+        Assert.True(viewModel.IsPreparingMashup);
+        Assert.False(viewModel.CanPreview);
+        Assert.False(viewModel.CanExport);
+
+        firstReady.SetResult(true);
+        secondReady.SetResult(true);
+        await selecting;
+
+        Assert.False(viewModel.IsPreparingMashup);
+        Assert.True(viewModel.CanPreview);
+        Assert.True(viewModel.CanExport);
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
@@ -203,18 +428,30 @@ public sealed class MixWindowViewModelTests : IDisposable
         string title,
         string artist,
         short sample
+    ) =>
+        CreateSource(
+            title,
+            artist,
+            new PcmAudioFormat(44_100, 16, 2),
+            [sample, sample, sample, sample]
+        );
+
+    private static ImportedAudioFile CreateSource(
+        string title,
+        string artist,
+        PcmAudioFormat format,
+        IReadOnlyList<short> samples
     )
     {
-        var format = new PcmAudioFormat(44_100, 16, 2);
-        var audio = new byte[4 * sizeof(short)];
-        for (var index = 0; index < 4; index++)
+        var audio = new byte[samples.Count * sizeof(short)];
+        for (var index = 0; index < samples.Count; index++)
         {
             BinaryPrimitives.WriteInt16LittleEndian(
                 audio.AsSpan(
                     index * sizeof(short),
                     sizeof(short)
                 ),
-                sample
+                samples[index]
             );
         }
 
@@ -260,6 +497,90 @@ public sealed class MixWindowViewModelTests : IDisposable
         }
 
         return samples;
+    }
+
+    private static MixSourceEditorIntegration CreateDelayedEditor(
+        AudioBufferSnapshot snapshot,
+        Task<bool> ready,
+        Func<bool> hasStems,
+        Action markReady
+    ) =>
+        new(
+            _ => Task.FromResult<AudioBufferSnapshot?>(snapshot),
+            () => true,
+            async _ =>
+            {
+                var result = await ready;
+                if (result)
+                {
+                    markReady();
+                }
+
+                return result;
+            },
+            hasStems,
+            () => hasStems() ? 100 : 0,
+            _ => { }
+        );
+
+    private sealed class RecordingEditor(AudioBufferSnapshot snapshot)
+    {
+        public int EnsureCount { get; private set; }
+
+        public bool HasStems { get; private set; }
+
+        public MixStemRole? LastRole { get; private set; }
+
+        public MixSourceEditorIntegration CreateIntegration() =>
+            new(
+                _ => Task.FromResult<AudioBufferSnapshot?>(snapshot),
+                () => true,
+                _ =>
+                {
+                    EnsureCount++;
+                    HasStems = true;
+                    return Task.FromResult(true);
+                },
+                () => HasStems,
+                () => HasStems ? 100 : 0,
+                role => LastRole = role
+            );
+    }
+
+    private sealed class RecordingPreviewPlayer : IAudioPreviewPlayer
+    {
+        public event EventHandler<AudioPreviewPositionChangedEventArgs>?
+            PositionChanged;
+
+        public event EventHandler? PlaybackStopped;
+
+        public bool IsPlaying { get; private set; }
+
+        public TimeSpan CurrentAudioPosition { get; private set; }
+
+        public AudioBufferSnapshot? Snapshot { get; private set; }
+
+        public void Play(
+            AudioBufferSnapshot snapshot,
+            TimeSpan resumeAt = default
+        )
+        {
+            Snapshot = snapshot;
+            CurrentAudioPosition = resumeAt;
+            IsPlaying = true;
+            PositionChanged?.Invoke(
+                this,
+                new AudioPreviewPositionChangedEventArgs(resumeAt)
+            );
+        }
+
+        public void Stop()
+        {
+            IsPlaying = false;
+            PlaybackStopped?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void Dispose() => Stop();
     }
 
     private sealed class RecordingExporter(string outputPath) :

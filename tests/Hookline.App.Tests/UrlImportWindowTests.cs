@@ -114,9 +114,27 @@ public sealed class UrlImportWindowTests
                 catalog,
                 new LocalAudioFileImporter(),
                 new UnusedExporter(),
-                settings
+                settings,
+                new AudioPreviewPlayer(
+                    Dispatcher.CurrentDispatcher
+                )
             );
-            _ = new MixWindow(viewModel);
+            var window = new MixWindow(viewModel);
+            var progressBar = window.FindName(
+                "MashupProgressBar"
+            ) as ProgressBar;
+            var progressBinding = progressBar is null
+                ? null
+                : BindingOperations.GetBinding(
+                    progressBar,
+                    RangeBase.ValueProperty
+                );
+            if (progressBinding?.Mode != BindingMode.OneWay)
+            {
+                throw new InvalidOperationException(
+                    "Mashup progress must be bound one-way."
+                );
+            }
         }
         finally
         {

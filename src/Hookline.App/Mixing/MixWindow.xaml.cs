@@ -166,6 +166,38 @@ public partial class MixWindow : Window
         RoutedEventArgs args
     ) => await _viewModel.ExportAsync();
 
+    private async void OnPreviewMixClick(
+        object sender,
+        RoutedEventArgs args
+    ) => await _viewModel.PreviewAsync();
+
+    private async void OnMashupRecipeClick(
+        object sender,
+        RoutedEventArgs args
+    ) =>
+        await _viewModel.SelectRecipeAsync(
+            MixRecipe.VocalsAndInstrumentalMashup
+        );
+
+    private async void OnSequentialRecipeClick(
+        object sender,
+        RoutedEventArgs args
+    ) =>
+        await _viewModel.SelectRecipeAsync(
+            MixRecipe.Sequential
+        );
+
+    private async void OnCustomRecipeClick(
+        object sender,
+        RoutedEventArgs args
+    ) =>
+        await _viewModel.SelectRecipeAsync(MixRecipe.Custom);
+
+    private void OnSwapSourcesClick(
+        object sender,
+        RoutedEventArgs args
+    ) => _viewModel.SwapSources();
+
     private void OnEditFirstSourceClick(
         object sender,
         RoutedEventArgs args

@@ -58,25 +58,96 @@ public sealed class TwoSourceAudioMixerTests
     }
 
     [Fact]
-    public void MixdownClampsInsteadOfOverflowing()
+    public void OverloadedMixdownIsScaledToMinusOneDbfsInsteadOfClipped()
     {
         var format = new PcmAudioFormat(44_100, 16, 1);
         var source = CreateSnapshot(
             format,
-            [30_000, -30_000]
+            [short.MaxValue, short.MinValue]
         );
 
         var mixed = TwoSourceAudioMixer.Mix(
             source,
-            1.5,
+            1,
             source,
-            1.5
+            1
+        );
+        var samples = ReadSamples(mixed.Audio.Span);
+
+        Assert.DoesNotContain(short.MaxValue, samples);
+        Assert.DoesNotContain(short.MinValue, samples);
+        var peak = samples.Max(sample => Math.Abs((int)sample));
+        var peakDecibels = 20d * Math.Log10(
+            peak / (double)short.MaxValue
+        );
+        Assert.InRange(peakDecibels, -1.01, -0.99);
+    }
+
+    [Fact]
+    public void MixThatDoesNotClipIsLeftByteForByteUntouched()
+    {
+        var format = new PcmAudioFormat(44_100, 16, 1);
+        var first = CreateSnapshot(format, [1_000, -2_000]);
+        var second = CreateSnapshot(format, [3_000, 4_000]);
+
+        var mixed = TwoSourceAudioMixer.Mix(
+            first,
+            0.5,
+            second,
+            0.25
         );
 
         Assert.Equal(
-            [short.MaxValue, short.MinValue],
+            [1_250, 0],
             ReadSamples(mixed.Audio.Span)
         );
+    }
+
+    [Fact]
+    public void SequentialArrangementUsesFixedEqualPowerCrossfade()
+    {
+        var format = new PcmAudioFormat(2, 16, 1);
+        var first = CreateSnapshot(
+            format,
+            [10_000, 10_000, 10_000, 10_000]
+        );
+        var second = CreateSnapshot(
+            format,
+            [10_000, 10_000, 10_000, 10_000]
+        );
+
+        var mixed = TwoSourceAudioMixer.ArrangeSequentially(
+            first,
+            1,
+            second,
+            1
+        );
+
+        Assert.Equal(TimeSpan.FromSeconds(2.5), mixed.Duration);
+        Assert.Equal(
+            [10_000, 10_000, 14_142, 10_000, 10_000],
+            ReadSamples(mixed.Audio.Span)
+        );
+    }
+
+    [Fact]
+    public void SequentialArrangementRejectsSourcesShorterThanCrossfade()
+    {
+        var format = new PcmAudioFormat(2, 16, 1);
+        var tooShort = CreateSnapshot(format, [1, 1]);
+        var longEnough = CreateSnapshot(format, [1, 1, 1]);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () =>
+                TwoSourceAudioMixer.ArrangeSequentially(
+                    tooShort,
+                    1,
+                    longEnough,
+                    1
+                )
+        );
+
+        Assert.Contains("1.5 seconds", exception.Message);
     }
 
     [Fact]

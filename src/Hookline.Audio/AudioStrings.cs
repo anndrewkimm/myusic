@@ -127,4 +127,7 @@ internal static class AudioStrings
 
     public const string MixedOutputTooLong =
         "A mixed clip cannot be longer than 5 minutes. Trim one of the sources and try again.";
+
+    public const string SequentialMixSourceTooShort =
+        "Each source needs at least 1.5 seconds of audio for the A then B crossfade.";
 }

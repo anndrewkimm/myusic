@@ -241,6 +241,36 @@ public sealed class TrimViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<StemVolumeViewModel> StemVolumes =>
         _stemVolumes;
 
+    internal void ApplyStemGainPreset(
+        Func<StemKind, double> getVolumePercent
+    )
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(getVolumePercent);
+        if (_separatedStemSet is null)
+        {
+            return;
+        }
+
+        foreach (var segment in _segmentEffects)
+        {
+            foreach (var stem in _separatedStemSet.Stems)
+            {
+                segment.SetStemVolumePercent(
+                    stem.Kind,
+                    Math.Clamp(
+                        Math.Round(getVolumePercent(stem.Kind)),
+                        StemRemixer.MinimumGain * 100,
+                        StemRemixer.MaximumGain * 100
+                    )
+                );
+            }
+        }
+
+        RebuildStemVolumes();
+        EffectsChanged();
+    }
+
     public bool IsStemBandView => _isStemBandView;
 
     public bool IsStemSliderView => !_isStemBandView;

@@ -328,9 +328,11 @@ public partial class WorkspaceWindow : Window
                 _catalog,
                 _importer,
                 _exporter,
-                _outputSettings
+                _outputSettings,
+                new AudioPreviewPlayer(Dispatcher)
             );
             _mixViewModel.SourceChanged += OnMixSourceChanged;
+            _mixViewModel.SourcesSwapped += OnMixSourcesSwapped;
             _mixWindow = new MixWindow(_mixViewModel);
             _mixWindow.HostCloseRequested += (_, _) => ShowHome();
             _mixWindow.EditSourceRequested +=
@@ -372,13 +374,70 @@ public partial class WorkspaceWindow : Window
         editor.ViewModel.PropertyChanged +=
             OnMixEditorPropertyChanged;
 
-        _mixViewModel?.SetSourceRenderer(
+        _mixViewModel?.SetSourceEditor(
             args.Slot,
-            editor.ViewModel.RenderSelectionAsync,
-            () => editor.ViewModel.CanExport
+            new MixSourceEditorIntegration(
+                editor.ViewModel.RenderSelectionAsync,
+                () => editor.ViewModel.CanExport,
+                cancellationToken =>
+                    EnsureMixSourceStemsAsync(
+                        editor,
+                        cancellationToken
+                    ),
+                () => editor.ViewModel.HasSeparatedStems,
+                () => editor.ViewModel.StemProgressPercent,
+                role => ApplyMixStemRole(editor.ViewModel, role)
+            )
         );
         ShowMixEditor(args.Slot);
     }
+
+    private void OnMixSourcesSwapped(
+        object? sender,
+        EventArgs args
+    ) =>
+        (_mixFirstEditor, _mixSecondEditor) =
+            (_mixSecondEditor, _mixFirstEditor);
+
+    private static async Task<bool> EnsureMixSourceStemsAsync(
+        HostedEditor editor,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!editor.ViewModel.HasSeparatedStems)
+        {
+            var available =
+                await editor.ViewModel.CheckStemModelAvailableAsync();
+            if (available is null)
+            {
+                return false;
+            }
+
+            await editor.ViewModel.IsolateStemsAsync(
+                downloadModel: !available.Value
+            );
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return editor.ViewModel.HasSeparatedStems;
+    }
+
+    private static void ApplyMixStemRole(
+        TrimViewModel viewModel,
+        MixStemRole role
+    ) =>
+        viewModel.ApplyStemGainPreset(
+            kind =>
+                role switch
+                {
+                    MixStemRole.VocalsOnly =>
+                        kind == StemKind.Vocals ? 100d : 0d,
+                    MixStemRole.InstrumentalOnly =>
+                        kind == StemKind.Vocals ? 0d : 100d,
+                    _ => 100d,
+                }
+        );
 
     private void OnMixEditorPropertyChanged(
         object? sender,
@@ -413,9 +472,23 @@ public partial class WorkspaceWindow : Window
         MixContextText.Text = string.Format(
             CultureInfo.CurrentCulture,
             AppStrings.WorkspaceEditingMixSource,
-            slot == MixSourceSlot.First ? "A" : "B"
+            GetMixSourceContextName(slot)
         );
         ShowEditor(editor, showMixContext: true);
+    }
+
+    private string GetMixSourceContextName(MixSourceSlot slot)
+    {
+        if (_mixViewModel?.IsMashupRecipe == true)
+        {
+            return slot == MixSourceSlot.First
+                ? AppStrings.MixVocalsSourceContext
+                : AppStrings.MixInstrumentalSourceContext;
+        }
+
+        return slot == MixSourceSlot.First
+            ? AppStrings.MixSourceAContext
+            : AppStrings.MixSourceBContext;
     }
 
     private async Task ShowLibraryAsync()
@@ -470,6 +543,7 @@ public partial class WorkspaceWindow : Window
         if (_mixViewModel is not null)
         {
             _mixViewModel.SourceChanged -= OnMixSourceChanged;
+            _mixViewModel.SourcesSwapped -= OnMixSourcesSwapped;
         }
 
         if (_mixWindow is not null)

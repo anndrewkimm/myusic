@@ -5,15 +5,16 @@
     xmlns:local="clr-namespace:Hookline.App"
     Title="{x:Static local:AppStrings.MixWindowTitle}"
     Width="880"
-    Height="690"
+    Height="820"
     MinWidth="760"
-    MinHeight="620"
+    MinHeight="700"
     WindowStartupLocation="CenterScreen"
     WindowStyle="None"
     Background="{StaticResource WindowBackgroundBrush}"
     Loaded="OnLoaded"
     PreviewKeyDown="OnWindowPreviewKeyDown">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
         <Style x:Key="MixTextBox" TargetType="TextBox">
             <Setter Property="Padding" Value="9,7" />
             <Setter Property="Background" Value="#0F131A" />
@@ -66,6 +67,7 @@
         <Grid Margin="26">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -100,7 +102,166 @@
                     Content="✕" />
             </Grid>
 
-            <Grid Grid.Row="1">
+            <Border
+                Grid.Row="1"
+                Margin="0,0,0,18"
+                Padding="17"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="#262D39"
+                BorderThickness="1"
+                CornerRadius="9">
+                <StackPanel>
+                    <TextBlock
+                        FontFamily="Segoe UI Semibold"
+                        FontSize="10"
+                        Foreground="{StaticResource AccentBrush}"
+                        Text="{x:Static local:AppStrings.MixRecipeHeading}" />
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border
+                            Grid.Column="0"
+                            Padding="11"
+                            BorderThickness="1"
+                            CornerRadius="7">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#0F131A" />
+                                    <Setter Property="BorderBrush" Value="#353D4B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMashupRecipe}" Value="True">
+                                            <Setter Property="Background" Value="#18221F" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <RadioButton
+                                GroupName="MixRecipe"
+                                IsChecked="{Binding IsMashupRecipe, Mode=OneWay}"
+                                IsEnabled="{Binding CanSelectRecipe}"
+                                Click="OnMashupRecipeClick">
+                                <StackPanel Margin="5,0,0,0">
+                                    <TextBlock
+                                        FontFamily="Segoe UI Semibold"
+                                        Text="{x:Static local:AppStrings.MixMashupRecipe}" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        FontSize="10"
+                                        Foreground="{StaticResource MutedTextBrush}"
+                                        Text="{x:Static local:AppStrings.MixMashupRecipeDescription}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </RadioButton>
+                        </Border>
+                        <Border
+                            Grid.Column="2"
+                            Padding="11"
+                            BorderThickness="1"
+                            CornerRadius="7">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#0F131A" />
+                                    <Setter Property="BorderBrush" Value="#353D4B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSequentialRecipe}" Value="True">
+                                            <Setter Property="Background" Value="#18221F" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <RadioButton
+                                GroupName="MixRecipe"
+                                IsChecked="{Binding IsSequentialRecipe, Mode=OneWay}"
+                                IsEnabled="{Binding CanSelectRecipe}"
+                                Click="OnSequentialRecipeClick">
+                                <StackPanel Margin="5,0,0,0">
+                                    <TextBlock
+                                        FontFamily="Segoe UI Semibold"
+                                        Text="{x:Static local:AppStrings.MixSequentialRecipe}" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        FontSize="10"
+                                        Foreground="{StaticResource MutedTextBrush}"
+                                        Text="{x:Static local:AppStrings.MixSequentialRecipeDescription}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </RadioButton>
+                        </Border>
+                        <Border
+                            Grid.Column="4"
+                            Padding="11"
+                            BorderThickness="1"
+                            CornerRadius="7">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#0F131A" />
+                                    <Setter Property="BorderBrush" Value="#353D4B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCustomRecipe}" Value="True">
+                                            <Setter Property="Background" Value="#18221F" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <RadioButton
+                                GroupName="MixRecipe"
+                                IsChecked="{Binding IsCustomRecipe, Mode=OneWay}"
+                                IsEnabled="{Binding CanSelectRecipe}"
+                                Click="OnCustomRecipeClick">
+                                <StackPanel Margin="5,0,0,0">
+                                    <TextBlock
+                                        FontFamily="Segoe UI Semibold"
+                                        Text="{x:Static local:AppStrings.MixCustomRecipe}" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        FontSize="10"
+                                        Foreground="{StaticResource MutedTextBrush}"
+                                        Text="{x:Static local:AppStrings.MixCustomRecipeDescription}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </RadioButton>
+                        </Border>
+                    </Grid>
+                    <Button
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Center"
+                        IsEnabled="{Binding CanSwapSources}"
+                        Visibility="{Binding IsMashupRecipe, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}"
+                        Click="OnSwapSourcesClick"
+                        Content="{x:Static local:AppStrings.MixSwapSources}" />
+                    <Grid
+                        Margin="0,12,0,0"
+                        Visibility="{Binding IsPreparingMashup, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressBar
+                            x:Name="MashupProgressBar"
+                            Height="8"
+                            VerticalAlignment="Center"
+                            Minimum="0"
+                            Maximum="100"
+                            Value="{Binding MashupProgressPercent, Mode=OneWay}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="10,0,0,0"
+                            FontFamily="Consolas"
+                            FontSize="10"
+                            Text="{Binding MashupProgressText}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="18" />
@@ -119,7 +280,7 @@
                             FontFamily="Segoe UI Semibold"
                             FontSize="10"
                             Foreground="{StaticResource AccentBrush}"
-                            Text="{x:Static local:AppStrings.MixFirstSource}" />
+                            Text="{Binding FirstSourceLabel}" />
                         <TextBlock
                             Margin="0,15,0,0"
                             FontSize="10"
@@ -157,9 +318,9 @@
                         </Border>
                         <Button
                             Margin="0,10,0,0"
-                            IsEnabled="{Binding HasFirstSource}"
+                            IsEnabled="{Binding CanEditFirstSource}"
                             Click="OnEditFirstSourceClick"
-                            Content="{x:Static local:AppStrings.WorkspaceMixSourceA}" />
+                            Content="{Binding FirstEditButtonText}" />
                         <DockPanel Margin="0,18,0,4">
                             <TextBlock
                                 DockPanel.Dock="Left"
@@ -176,7 +337,7 @@
                             Minimum="0"
                             Maximum="150"
                             TickFrequency="5"
-                            IsEnabled="{Binding HasFirstSource}"
+                            IsEnabled="{Binding CanAdjustFirstVolume}"
                             Value="{Binding FirstVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>
@@ -193,7 +354,7 @@
                             FontFamily="Segoe UI Semibold"
                             FontSize="10"
                             Foreground="{StaticResource AccentBrush}"
-                            Text="{x:Static local:AppStrings.MixSecondSource}" />
+                            Text="{Binding SecondSourceLabel}" />
                         <TextBlock
                             Margin="0,15,0,0"
                             FontSize="10"
@@ -231,9 +392,9 @@
                         </Border>
                         <Button
                             Margin="0,10,0,0"
-                            IsEnabled="{Binding HasSecondSource}"
+                            IsEnabled="{Binding CanEditSecondSource}"
                             Click="OnEditSecondSourceClick"
-                            Content="{x:Static local:AppStrings.WorkspaceMixSourceB}" />
+                            Content="{Binding SecondEditButtonText}" />
                         <DockPanel Margin="0,18,0,4">
                             <TextBlock
                                 DockPanel.Dock="Left"
@@ -250,14 +411,14 @@
                             Minimum="0"
                             Maximum="150"
                             TickFrequency="5"
-                            IsEnabled="{Binding HasSecondSource}"
+                            IsEnabled="{Binding CanAdjustSecondVolume}"
                             Value="{Binding SecondVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>
             </Grid>
 
             <Border
-                Grid.Row="2"
+                Grid.Row="3"
                 Margin="0,18,0,0"
                 Padding="17"
                 Background="{StaticResource PanelBackgroundBrush}"
@@ -289,6 +450,7 @@
                         <TextBox
                             Margin="0,5,0,0"
                             Style="{StaticResource MixTextBox}"
+                            IsEnabled="{Binding CanEditMetadata}"
                             Text="{Binding ExportTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0">
@@ -299,6 +461,7 @@
                         <TextBox
                             Margin="0,5,0,0"
                             Style="{StaticResource MixTextBox}"
+                            IsEnabled="{Binding CanEditMetadata}"
                             Text="{Binding ExportArtist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <TextBlock
@@ -312,7 +475,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,17,0,0">
+            <Grid Grid.Row="4" Margin="0,17,0,0">
                 <TextBlock
                     MaxWidth="560"
                     HorizontalAlignment="Left"
@@ -321,14 +484,23 @@
                     Foreground="{StaticResource MutedTextBrush}"
                     Text="{Binding StatusMessage}"
                     TextWrapping="Wrap" />
-                <Button
+                <StackPanel
                     HorizontalAlignment="Right"
-                    MinWidth="185"
-                    Background="#216B53"
-                    BorderBrush="{StaticResource AccentBrush}"
-                    IsEnabled="{Binding CanExport}"
-                    Click="OnExportClick"
-                    Content="{Binding ExportButtonText}" />
+                    Orientation="Horizontal">
+                    <Button
+                        MinWidth="135"
+                        Margin="0,0,10,0"
+                        IsEnabled="{Binding CanPreview}"
+                        Click="OnPreviewMixClick"
+                        Content="{Binding PreviewButtonText}" />
+                    <Button
+                        MinWidth="185"
+                        Background="#216B53"
+                        BorderBrush="{StaticResource AccentBrush}"
+                        IsEnabled="{Binding CanExport}"
+                        Click="OnExportClick"
+                        Content="{Binding ExportButtonText}" />
+                </StackPanel>
             </Grid>
         </Grid>
     </Border>

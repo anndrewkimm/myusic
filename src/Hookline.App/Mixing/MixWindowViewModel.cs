@@ -16,28 +16,24 @@ public sealed class MixWindowViewModel
     private readonly LocalAudioFileImporter _importer;
     private readonly IClipExporter _exporter;
     private readonly OutputFolderSettings _outputSettings;
+    private readonly IAudioPreviewPlayer _previewPlayer;
     private readonly CancellationTokenSource _lifetimeCancellation =
         new();
     private readonly Dictionary<string, ImportedAudioFile> _sourceCache =
         new(StringComparer.OrdinalIgnoreCase);
     private ImportedAudioFile? _firstSource;
     private ImportedAudioFile? _secondSource;
-    private Func<
-        CancellationToken,
-        Task<AudioBufferSnapshot?>
-    >? _firstRenderer;
-    private Func<
-        CancellationToken,
-        Task<AudioBufferSnapshot?>
-    >? _secondRenderer;
-    private Func<bool>? _firstCanRender;
-    private Func<bool>? _secondCanRender;
+    private MixSourceEditorIntegration? _firstEditor;
+    private MixSourceEditorIntegration? _secondEditor;
+    private MixRecipe _selectedRecipe = MixRecipe.Custom;
     private double _firstVolumePercent = 100;
     private double _secondVolumePercent = 100;
     private string _exportTitle = string.Empty;
     private string _exportArtist = string.Empty;
     private string _statusMessage = string.Empty;
     private bool _isLoadingSource;
+    private bool _isPreparingMashup;
+    private bool _isRenderingPreview;
     private bool _isExporting;
     private bool _disposed;
 
@@ -45,7 +41,8 @@ public sealed class MixWindowViewModel
         ClipCatalogService catalog,
         LocalAudioFileImporter importer,
         IClipExporter exporter,
-        OutputFolderSettings outputSettings
+        OutputFolderSettings outputSettings,
+        IAudioPreviewPlayer previewPlayer
     )
     {
         _catalog =
@@ -62,6 +59,12 @@ public sealed class MixWindowViewModel
             ?? throw new ArgumentNullException(
                 nameof(outputSettings)
             );
+        _previewPlayer =
+            previewPlayer
+            ?? throw new ArgumentNullException(
+                nameof(previewPlayer)
+            );
+        _previewPlayer.PlaybackStopped += OnPreviewStopped;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -69,10 +72,23 @@ public sealed class MixWindowViewModel
     public event EventHandler<MixSourceChangedEventArgs>?
         SourceChanged;
 
+    public event EventHandler? SourcesSwapped;
+
     public ObservableCollection<MixCatalogSource> CatalogSources
     {
         get;
     } = [];
+
+    public MixRecipe SelectedRecipe => _selectedRecipe;
+
+    public bool IsMashupRecipe =>
+        SelectedRecipe == MixRecipe.VocalsAndInstrumentalMashup;
+
+    public bool IsSequentialRecipe =>
+        SelectedRecipe == MixRecipe.Sequential;
+
+    public bool IsCustomRecipe =>
+        SelectedRecipe == MixRecipe.Custom;
 
     public bool HasFirstSource => _firstSource is not null;
 
@@ -86,6 +102,22 @@ public sealed class MixWindowViewModel
 
     public string SecondSourceDetail => GetDetail(_secondSource);
 
+    public string FirstSourceLabel => IsMashupRecipe
+        ? AppStrings.MixVocalsSource
+        : AppStrings.MixFirstSource;
+
+    public string SecondSourceLabel => IsMashupRecipe
+        ? AppStrings.MixInstrumentalSource
+        : AppStrings.MixSecondSource;
+
+    public string FirstEditButtonText => IsMashupRecipe
+        ? AppStrings.MixEditVocalsSource
+        : AppStrings.WorkspaceMixSourceA;
+
+    public string SecondEditButtonText => IsMashupRecipe
+        ? AppStrings.MixEditInstrumentalSource
+        : AppStrings.WorkspaceMixSourceB;
+
     public double FirstVolumePercent
     {
         get => _firstVolumePercent;
@@ -98,6 +130,7 @@ public sealed class MixWindowViewModel
             }
 
             _firstVolumePercent = normalized;
+            StopPreview();
             OnPropertyChanged();
             OnPropertyChanged(nameof(FirstVolumeText));
         }
@@ -115,6 +148,7 @@ public sealed class MixWindowViewModel
             }
 
             _secondVolumePercent = normalized;
+            StopPreview();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SecondVolumeText));
         }
@@ -183,21 +217,59 @@ public sealed class MixWindowViewModel
         }
     }
 
-    public bool IsBusy => _isLoadingSource || _isExporting;
+    public bool IsBusy =>
+        _isLoadingSource
+        || _isPreparingMashup
+        || _isRenderingPreview
+        || _isExporting;
+
+    public bool IsPreparingMashup => _isPreparingMashup;
+
+    public double MashupProgressPercent =>
+        ((_firstEditor?.GetStemProgressPercent() ?? 0d)
+            + (_secondEditor?.GetStemProgressPercent() ?? 0d))
+        / 2d;
+
+    public string MashupProgressText => string.Create(
+        CultureInfo.CurrentCulture,
+        $"{MashupProgressPercent:0}%"
+    );
 
     public bool CanChooseSources => !IsBusy;
 
-    public bool CanExport =>
-        HasFirstSource
+    public bool CanSelectRecipe => !IsBusy;
+
+    public bool CanEditFirstSource => HasFirstSource && !IsBusy;
+
+    public bool CanEditSecondSource => HasSecondSource && !IsBusy;
+
+    public bool CanAdjustFirstVolume => HasFirstSource && !IsBusy;
+
+    public bool CanAdjustSecondVolume => HasSecondSource && !IsBusy;
+
+    public bool CanEditMetadata => !IsBusy;
+
+    public bool CanSwapSources =>
+        IsMashupRecipe
+        && HasFirstSource
         && HasSecondSource
-        && !string.IsNullOrWhiteSpace(ExportTitle)
-        && CanRenderSources
         && !IsBusy;
 
-    public string ExportButtonText =>
-        _isExporting
-            ? AppStrings.MixExporting
-            : AppStrings.MixExport;
+    public bool IsPlaying => _previewPlayer.IsPlaying;
+
+    public bool CanPreview => IsPlaying || CanRenderMix;
+
+    public bool CanExport =>
+        CanRenderMix
+        && !string.IsNullOrWhiteSpace(ExportTitle);
+
+    public string PreviewButtonText => IsPlaying
+        ? AppStrings.MixStopPreview
+        : AppStrings.MixPreview;
+
+    public string ExportButtonText => _isExporting
+        ? AppStrings.MixExporting
+        : AppStrings.MixExport;
 
     public async Task LoadCatalogAsync()
     {
@@ -257,6 +329,107 @@ public sealed class MixWindowViewModel
         string filePath
     ) => LoadSourceAsync(slot, filePath);
 
+    public async Task SelectRecipeAsync(MixRecipe recipe)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (IsBusy)
+        {
+            return;
+        }
+
+        StopPreview();
+        _selectedRecipe = recipe;
+        NotifyRecipeChanged();
+        StatusMessage = string.Empty;
+
+        if (recipe == MixRecipe.VocalsAndInstrumentalMashup)
+        {
+            await PrepareMashupAsync();
+        }
+        else if (recipe == MixRecipe.Sequential)
+        {
+            ApplyStemRole(_firstEditor, MixStemRole.FullMix);
+            ApplyStemRole(_secondEditor, MixStemRole.FullMix);
+            if (HasFirstSource && HasSecondSource)
+            {
+                StatusMessage = AppStrings.MixSequentialReady;
+            }
+        }
+
+        NotifyActionStateChanged();
+    }
+
+    public void SwapSources()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!CanSwapSources)
+        {
+            return;
+        }
+
+        StopPreview();
+        (_firstSource, _secondSource) =
+            (_secondSource, _firstSource);
+        (_firstEditor, _secondEditor) =
+            (_secondEditor, _firstEditor);
+        (_firstVolumePercent, _secondVolumePercent) =
+            (_secondVolumePercent, _firstVolumePercent);
+        ApplyMashupRoles();
+        RefreshDefaultMetadata();
+        NotifyAllSourceProperties();
+        StatusMessage = AppStrings.MixSourcesSwapped;
+        SourcesSwapped?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task PreviewAsync()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (IsPlaying)
+        {
+            StopPreview();
+            return;
+        }
+
+        if (!CanRenderMix)
+        {
+            StatusMessage = GetUnavailableMessage();
+            return;
+        }
+
+        SetRenderingPreview(true);
+        StatusMessage = AppStrings.MixRenderingPreview;
+        try
+        {
+            var mixed = await RenderMixAsync(
+                _lifetimeCancellation.Token
+            );
+            if (mixed is null)
+            {
+                StatusMessage = AppStrings.MixChooseTwoSources;
+                return;
+            }
+
+            _previewPlayer.Play(mixed);
+            StatusMessage = AppStrings.MixPreviewReady;
+            NotifyPreviewStateChanged();
+        }
+        catch (OperationCanceledException)
+            when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = Format(
+                AppStrings.PreviewFailed,
+                exception.Message
+            );
+        }
+        finally
+        {
+            SetRenderingPreview(false);
+        }
+    }
+
     public async Task ExportAsync()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -277,45 +450,28 @@ public sealed class MixWindowViewModel
             return;
         }
 
-        if (!CanRenderSources)
+        if (!CanRenderSources || !IsRecipeReady)
         {
-            StatusMessage = AppStrings.WorkspaceMixSourceBusy;
+            StatusMessage = GetUnavailableMessage();
             return;
         }
 
+        StopPreview();
         SetExporting(true);
         StatusMessage = string.Empty;
         try
         {
-            var first = _firstSource;
-            var second = _secondSource;
-            var firstSnapshot = await RenderSourceAsync(
-                MixSourceSlot.First,
-                first,
+            var mixed = await RenderMixAsync(
                 _lifetimeCancellation.Token
             );
-            var secondSnapshot = await RenderSourceAsync(
-                MixSourceSlot.Second,
-                second,
-                _lifetimeCancellation.Token
-            );
-            if (firstSnapshot is null || secondSnapshot is null)
+            if (mixed is null)
             {
                 StatusMessage = AppStrings.MixChooseTwoSources;
                 return;
             }
 
-            var mixed = await Task.Run(
-                () =>
-                    TwoSourceAudioMixer.Mix(
-                        firstSnapshot,
-                        FirstVolumePercent / 100d,
-                        secondSnapshot,
-                        SecondVolumePercent / 100d,
-                        _lifetimeCancellation.Token
-                    ),
-                _lifetimeCancellation.Token
-            );
+            var first = _firstSource;
+            var second = _secondSource;
             var albumArt = !first.Metadata.AlbumArt.IsEmpty
                 ? first.Metadata.AlbumArt
                 : second.Metadata.AlbumArt;
@@ -362,41 +518,36 @@ public sealed class MixWindowViewModel
 
         _disposed = true;
         _lifetimeCancellation.Cancel();
+        _previewPlayer.PlaybackStopped -= OnPreviewStopped;
+        _previewPlayer.Dispose();
         _lifetimeCancellation.Dispose();
     }
 
-    internal void SetSource(
+    internal async Task SetSourceAsync(
         MixSourceSlot slot,
         ImportedAudioFile source
     )
     {
-        ArgumentNullException.ThrowIfNull(source);
+        SetSourceCore(slot, source);
+        await ApplyRecipeAfterSourceChangedAsync(slot);
+    }
+
+    internal void SetSourceEditor(
+        MixSourceSlot slot,
+        MixSourceEditorIntegration integration
+    )
+    {
+        ArgumentNullException.ThrowIfNull(integration);
         if (slot == MixSourceSlot.First)
         {
-            _firstSource = source;
-            _firstRenderer = null;
-            _firstCanRender = null;
-            OnPropertyChanged(nameof(HasFirstSource));
-            OnPropertyChanged(nameof(FirstSourceTitle));
-            OnPropertyChanged(nameof(FirstSourceDetail));
+            _firstEditor = integration;
         }
         else
         {
-            _secondSource = source;
-            _secondRenderer = null;
-            _secondCanRender = null;
-            OnPropertyChanged(nameof(HasSecondSource));
-            OnPropertyChanged(nameof(SecondSourceTitle));
-            OnPropertyChanged(nameof(SecondSourceDetail));
+            _secondEditor = integration;
         }
 
-        RefreshDefaultMetadata();
-        StatusMessage = string.Empty;
-        OnPropertyChanged(nameof(CanExport));
-        SourceChanged?.Invoke(
-            this,
-            new MixSourceChangedEventArgs(slot, source)
-        );
+        NotifySourceRendererStateChanged();
     }
 
     internal void SetSourceRenderer(
@@ -407,22 +558,25 @@ public sealed class MixWindowViewModel
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(canRender);
-        if (slot == MixSourceSlot.First)
-        {
-            _firstRenderer = renderer;
-            _firstCanRender = canRender;
-        }
-        else
-        {
-            _secondRenderer = renderer;
-            _secondCanRender = canRender;
-        }
-
-        OnPropertyChanged(nameof(CanExport));
+        SetSourceEditor(
+            slot,
+            new MixSourceEditorIntegration(
+                renderer,
+                canRender,
+                _ => Task.FromResult(false),
+                () => false,
+                () => 0,
+                _ => { }
+            )
+        );
     }
 
-    internal void NotifySourceRendererStateChanged() =>
-        OnPropertyChanged(nameof(CanExport));
+    internal void NotifySourceRendererStateChanged()
+    {
+        OnPropertyChanged(nameof(MashupProgressPercent));
+        OnPropertyChanged(nameof(MashupProgressText));
+        NotifyActionStateChanged();
+    }
 
     private async Task LoadSourceAsync(
         MixSourceSlot slot,
@@ -435,21 +589,22 @@ public sealed class MixWindowViewModel
             return;
         }
 
+        ImportedAudioFile? loadedSource = null;
         SetLoadingSource(true);
         StatusMessage = AppStrings.MixLoadingSource;
         try
         {
             var fullPath = Path.GetFullPath(filePath);
-            if (!_sourceCache.TryGetValue(fullPath, out var source))
+            if (!_sourceCache.TryGetValue(fullPath, out loadedSource))
             {
-                source = await _importer.ImportAsync(
+                loadedSource = await _importer.ImportAsync(
                     fullPath,
                     _lifetimeCancellation.Token
                 );
-                _sourceCache.Add(fullPath, source);
+                _sourceCache.Add(fullPath, loadedSource);
             }
 
-            SetSource(slot, source);
+            SetSourceCore(slot, loadedSource);
         }
         catch (OperationCanceledException)
             when (_lifetimeCancellation.IsCancellationRequested)
@@ -466,7 +621,192 @@ public sealed class MixWindowViewModel
         {
             SetLoadingSource(false);
         }
+
+        if (loadedSource is not null)
+        {
+            await ApplyRecipeAfterSourceChangedAsync(slot);
+        }
     }
+
+    private void SetSourceCore(
+        MixSourceSlot slot,
+        ImportedAudioFile source
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        StopPreview();
+        if (slot == MixSourceSlot.First)
+        {
+            _firstSource = source;
+            _firstEditor = null;
+        }
+        else
+        {
+            _secondSource = source;
+            _secondEditor = null;
+        }
+
+        RefreshDefaultMetadata();
+        StatusMessage = string.Empty;
+        NotifyAllSourceProperties();
+        SourceChanged?.Invoke(
+            this,
+            new MixSourceChangedEventArgs(slot, source)
+        );
+    }
+
+    private async Task ApplyRecipeAfterSourceChangedAsync(
+        MixSourceSlot slot
+    )
+    {
+        if (SelectedRecipe == MixRecipe.VocalsAndInstrumentalMashup)
+        {
+            await PrepareMashupAsync();
+        }
+        else if (SelectedRecipe == MixRecipe.Sequential)
+        {
+            ApplyStemRole(
+                GetEditor(slot),
+                MixStemRole.FullMix
+            );
+        }
+
+        NotifyActionStateChanged();
+    }
+
+    private async Task PrepareMashupAsync()
+    {
+        if (
+            _firstSource is null
+            || _secondSource is null
+            || _firstEditor is null
+            || _secondEditor is null
+        )
+        {
+            StatusMessage = AppStrings.MixMashupChooseSources;
+            return;
+        }
+
+        SetPreparingMashup(true);
+        StatusMessage = AppStrings.MixPreparingMashup;
+        try
+        {
+            var firstTask = _firstEditor.EnsureStemsAsync(
+                _lifetimeCancellation.Token
+            );
+            var secondTask = _secondEditor.EnsureStemsAsync(
+                _lifetimeCancellation.Token
+            );
+            var results = await Task.WhenAll(firstTask, secondTask);
+            if (
+                results.All(result => result)
+                && _firstEditor.HasSeparatedStems()
+                && _secondEditor.HasSeparatedStems()
+            )
+            {
+                ApplyMashupRoles();
+                StatusMessage = AppStrings.MixMashupReady;
+            }
+            else
+            {
+                StatusMessage = AppStrings.MixMashupIncomplete;
+            }
+        }
+        catch (OperationCanceledException)
+            when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = Format(
+                AppStrings.MixMashupFailed,
+                exception.Message
+            );
+        }
+        finally
+        {
+            SetPreparingMashup(false);
+        }
+    }
+
+    private void ApplyMashupRoles()
+    {
+        ApplyStemRole(_firstEditor, MixStemRole.VocalsOnly);
+        ApplyStemRole(
+            _secondEditor,
+            MixStemRole.InstrumentalOnly
+        );
+    }
+
+    private static void ApplyStemRole(
+        MixSourceEditorIntegration? editor,
+        MixStemRole role
+    )
+    {
+        if (editor?.HasSeparatedStems() == true)
+        {
+            editor.ApplyStemRole(role);
+        }
+    }
+
+    private async Task<AudioBufferSnapshot?> RenderMixAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var first = _firstSource;
+        var second = _secondSource;
+        if (first is null || second is null)
+        {
+            return null;
+        }
+
+        var firstSnapshot = await RenderSourceAsync(
+            _firstEditor,
+            first,
+            cancellationToken
+        );
+        var secondSnapshot = await RenderSourceAsync(
+            _secondEditor,
+            second,
+            cancellationToken
+        );
+        if (firstSnapshot is null || secondSnapshot is null)
+        {
+            return null;
+        }
+
+        var recipe = SelectedRecipe;
+        var firstGain = FirstVolumePercent / 100d;
+        var secondGain = SecondVolumePercent / 100d;
+        return await Task.Run(
+            () =>
+                recipe == MixRecipe.Sequential
+                    ? TwoSourceAudioMixer.ArrangeSequentially(
+                        firstSnapshot,
+                        firstGain,
+                        secondSnapshot,
+                        secondGain,
+                        cancellationToken
+                    )
+                    : TwoSourceAudioMixer.Mix(
+                        firstSnapshot,
+                        firstGain,
+                        secondSnapshot,
+                        secondGain,
+                        cancellationToken
+                    ),
+            cancellationToken
+        );
+    }
+
+    private static Task<AudioBufferSnapshot?> RenderSourceAsync(
+        MixSourceEditorIntegration? editor,
+        ImportedAudioFile source,
+        CancellationToken cancellationToken
+    ) =>
+        editor is null
+            ? Task.FromResult<AudioBufferSnapshot?>(source.Snapshot)
+            : editor.RenderAsync(cancellationToken);
 
     private void RefreshDefaultMetadata()
     {
@@ -495,23 +835,37 @@ public sealed class MixWindowViewModel
         );
     }
 
-    private Task<AudioBufferSnapshot?> RenderSourceAsync(
-        MixSourceSlot slot,
-        ImportedAudioFile source,
-        CancellationToken cancellationToken
-    )
-    {
-        var renderer = slot == MixSourceSlot.First
-            ? _firstRenderer
-            : _secondRenderer;
-        return renderer is null
-            ? Task.FromResult<AudioBufferSnapshot?>(source.Snapshot)
-            : renderer(cancellationToken);
-    }
+    private bool CanRenderMix =>
+        HasFirstSource
+        && HasSecondSource
+        && CanRenderSources
+        && IsRecipeReady
+        && !IsBusy;
 
     private bool CanRenderSources =>
-        (_firstCanRender?.Invoke() ?? true)
-        && (_secondCanRender?.Invoke() ?? true);
+        (_firstEditor?.CanRender() ?? true)
+        && (_secondEditor?.CanRender() ?? true);
+
+    private bool IsRecipeReady =>
+        !IsMashupRecipe
+        || (
+            _firstEditor?.HasSeparatedStems() == true
+            && _secondEditor?.HasSeparatedStems() == true
+        );
+
+    private string GetUnavailableMessage() =>
+        !HasFirstSource || !HasSecondSource
+            ? AppStrings.MixChooseTwoSources
+            : IsMashupRecipe && !IsRecipeReady
+                ? AppStrings.MixMashupIncomplete
+                : AppStrings.WorkspaceMixSourceBusy;
+
+    private MixSourceEditorIntegration? GetEditor(
+        MixSourceSlot slot
+    ) =>
+        slot == MixSourceSlot.First
+            ? _firstEditor
+            : _secondEditor;
 
     private void SetLoadingSource(bool value)
     {
@@ -521,6 +875,29 @@ public sealed class MixWindowViewModel
         }
 
         _isLoadingSource = value;
+        NotifyBusyStateChanged();
+    }
+
+    private void SetPreparingMashup(bool value)
+    {
+        if (_isPreparingMashup == value)
+        {
+            return;
+        }
+
+        _isPreparingMashup = value;
+        OnPropertyChanged(nameof(IsPreparingMashup));
+        NotifyBusyStateChanged();
+    }
+
+    private void SetRenderingPreview(bool value)
+    {
+        if (_isRenderingPreview == value)
+        {
+            return;
+        }
+
+        _isRenderingPreview = value;
         NotifyBusyStateChanged();
     }
 
@@ -540,7 +917,73 @@ public sealed class MixWindowViewModel
     {
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanChooseSources));
+        OnPropertyChanged(nameof(CanSelectRecipe));
+        OnPropertyChanged(nameof(CanEditFirstSource));
+        OnPropertyChanged(nameof(CanEditSecondSource));
+        OnPropertyChanged(nameof(CanAdjustFirstVolume));
+        OnPropertyChanged(nameof(CanAdjustSecondVolume));
+        OnPropertyChanged(nameof(CanEditMetadata));
+        OnPropertyChanged(nameof(CanSwapSources));
+        NotifyActionStateChanged();
+    }
+
+    private void NotifyRecipeChanged()
+    {
+        OnPropertyChanged(nameof(SelectedRecipe));
+        OnPropertyChanged(nameof(IsMashupRecipe));
+        OnPropertyChanged(nameof(IsSequentialRecipe));
+        OnPropertyChanged(nameof(IsCustomRecipe));
+        OnPropertyChanged(nameof(FirstSourceLabel));
+        OnPropertyChanged(nameof(SecondSourceLabel));
+        OnPropertyChanged(nameof(FirstEditButtonText));
+        OnPropertyChanged(nameof(SecondEditButtonText));
+        OnPropertyChanged(nameof(CanSwapSources));
+    }
+
+    private void NotifyAllSourceProperties()
+    {
+        OnPropertyChanged(nameof(HasFirstSource));
+        OnPropertyChanged(nameof(HasSecondSource));
+        OnPropertyChanged(nameof(FirstSourceTitle));
+        OnPropertyChanged(nameof(SecondSourceTitle));
+        OnPropertyChanged(nameof(FirstSourceDetail));
+        OnPropertyChanged(nameof(SecondSourceDetail));
+        OnPropertyChanged(nameof(FirstVolumePercent));
+        OnPropertyChanged(nameof(SecondVolumePercent));
+        OnPropertyChanged(nameof(FirstVolumeText));
+        OnPropertyChanged(nameof(SecondVolumeText));
+        OnPropertyChanged(nameof(CanEditFirstSource));
+        OnPropertyChanged(nameof(CanEditSecondSource));
+        OnPropertyChanged(nameof(CanAdjustFirstVolume));
+        OnPropertyChanged(nameof(CanAdjustSecondVolume));
+        OnPropertyChanged(nameof(CanSwapSources));
+        NotifyActionStateChanged();
+    }
+
+    private void NotifyActionStateChanged()
+    {
+        OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanExport));
+    }
+
+    private void StopPreview()
+    {
+        if (_previewPlayer.IsPlaying)
+        {
+            _previewPlayer.Stop();
+        }
+
+        NotifyPreviewStateChanged();
+    }
+
+    private void OnPreviewStopped(object? sender, EventArgs args) =>
+        NotifyPreviewStateChanged();
+
+    private void NotifyPreviewStateChanged()
+    {
+        OnPropertyChanged(nameof(IsPlaying));
+        OnPropertyChanged(nameof(PreviewButtonText));
+        OnPropertyChanged(nameof(CanPreview));
     }
 
     private static string GetTitle(ImportedAudioFile? source) =>

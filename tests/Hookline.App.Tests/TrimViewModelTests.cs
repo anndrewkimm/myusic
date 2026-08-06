@@ -486,6 +486,30 @@ public sealed class TrimViewModelTests
     }
 
     [Fact]
+    public async Task MixRecipeStemPresetAppliesToEverySegment()
+    {
+        using var fixture = new ViewModelFixture();
+        fixture.ViewModel.SetSelection(
+            TimeSpan.Zero,
+            TimeSpan.FromSeconds(2)
+        );
+        Assert.True(
+            fixture.ViewModel.AddSplit(TimeSpan.FromSeconds(1))
+        );
+        await fixture.ViewModel.IsolateStemsAsync(
+            downloadModel: false
+        );
+
+        fixture.ViewModel.ApplyStemGainPreset(
+            kind => kind == StemKind.Vocals ? 100 : 0
+        );
+
+        AssertStemRecipe(fixture.ViewModel.StemVolumes);
+        fixture.ViewModel.SetActiveSegment(0);
+        AssertStemRecipe(fixture.ViewModel.StemVolumes);
+    }
+
+    [Fact]
     public async Task SwitchingStemViewsPreservesTheExactSharedValues()
     {
         using var fixture = new ViewModelFixture();
@@ -768,6 +792,23 @@ public sealed class TrimViewModelTests
             fixture.Preview.LastSnapshot!.Audio.Span.SequenceEqual(
                 fixture.Exporter.LastSelection!.Audio.Span
             )
+        );
+    }
+
+    private static void AssertStemRecipe(
+        IReadOnlyList<StemVolumeViewModel> stems
+    )
+    {
+        Assert.Equal(
+            100,
+            Assert.Single(
+                stems,
+                stem => stem.Kind == StemKind.Vocals
+            ).VolumePercent
+        );
+        Assert.All(
+            stems.Where(stem => stem.Kind != StemKind.Vocals),
+            stem => Assert.Equal(0, stem.VolumePercent)
         );
     }
 

@@ -235,9 +235,32 @@ public static class AppStrings
         "Hookline — mix two clips";
     public const string MixHeading = "Mix two clips";
     public const string MixSubtitle =
-        "Layer two finished clips or imported files, set their levels, then export one track.";
+        "Choose how the songs should work together, shape each source, preview, then export.";
+    public const string MixRecipeHeading = "HOW SHOULD THEY MIX?";
+    public const string MixMashupRecipe =
+        "Vocals + Instrumental Mashup";
+    public const string MixMashupRecipeDescription =
+        "Put one song's vocals over the music from another. Hookline isolates and sets up the stems for you.";
+    public const string MixSequentialRecipe = "A then B";
+    public const string MixSequentialRecipeDescription =
+        "Play source A, then blend into source B with a smooth 1.5-second crossfade.";
+    public const string MixCustomRecipe = "Custom";
+    public const string MixCustomRecipeDescription =
+        "Layer both sources at the same time and control every effect and level yourself.";
     public const string MixFirstSource = "SOURCE A";
     public const string MixSecondSource = "SOURCE B";
+    public const string MixVocalsSource = "VOCALS SOURCE";
+    public const string MixInstrumentalSource =
+        "INSTRUMENTAL SOURCE";
+    public const string MixVocalsSourceContext = "vocals source";
+    public const string MixInstrumentalSourceContext =
+        "instrumental source";
+    public const string MixSourceAContext = "source A";
+    public const string MixSourceBContext = "source B";
+    public const string MixEditVocalsSource = "Edit vocals source";
+    public const string MixEditInstrumentalSource =
+        "Edit instrumental source";
+    public const string MixSwapSources = "Swap vocals and instrumental";
     public const string MixCatalogSource = "Choose from your clips";
     public const string MixImportSource = "Import file...";
     public const string MixNoSource = "No source selected";
@@ -248,6 +271,26 @@ public static class AppStrings
     public const string MixOutputFolder = "Saves to";
     public const string MixExport = "Export mixed MP3";
     public const string MixExporting = "Mixing and exporting…";
+    public const string MixPreview = "Preview mix";
+    public const string MixStopPreview = "Stop preview";
+    public const string MixRenderingPreview =
+        "Rendering the combined preview…";
+    public const string MixPreviewReady =
+        "Playing the exact mix that will be exported.";
+    public const string MixMashupChooseSources =
+        "Choose a vocals source and an instrumental source to set up the mashup.";
+    public const string MixPreparingMashup =
+        "Isolating both sources and setting the vocal/instrumental balance…";
+    public const string MixMashupReady =
+        "Mashup ready. Adjust either source, then preview the combined result.";
+    public const string MixMashupIncomplete =
+        "Stem isolation must finish for both sources before this mashup can be previewed or exported.";
+    public const string MixMashupFailed =
+        "The automatic mashup setup failed: {0}";
+    public const string MixSequentialReady =
+        "A then B is ready with a 1.5-second equal-power crossfade.";
+    public const string MixSourcesSwapped =
+        "Swapped. The first source now supplies vocals and the second supplies the instrumental.";
     public const string MixChooseTwoSources =
         "Choose both source clips before exporting.";
     public const string MixCatalogEmpty =
@@ -292,7 +335,7 @@ public static class AppStrings
     public const string WorkspaceMixSourceB = "Edit source B";
     public const string WorkspaceMixSetup = "Mix setup";
     public const string WorkspaceEditingMixSource =
-        "Editing mix source {0} independently";
+        "Editing {0} independently";
     public const string WorkspaceMixSourceBusy =
         "Finish or cancel the active source operation before exporting the mix.";
     public const string WorkspaceViewUnavailable =

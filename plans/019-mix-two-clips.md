@@ -1,5 +1,5 @@
 ---
-status: READY
+status: REVIEW
 touches: [Hookline.App, Hookline.Audio]
 depends_on: [003, 004, 008, 009, 011, 014, 022]
 ---
@@ -520,28 +520,52 @@ not a real open question.
 
 ## Recipe acceptance criteria
 
-- [ ] Mix setup presents three named recipes — "Vocals + Instrumental
+- [x] Mix setup presents three named recipes — "Vocals + Instrumental
       Mashup," "A then B," "Custom" — not a single forced flow.
-- [ ] Selecting the Mashup recipe automatically starts stem separation on
+- [x] Selecting the Mashup recipe automatically starts stem separation on
       both sources with no extra consent click, labels the two slots
       "Vocals source"/"Instrumental source" with a one-click swap, and
       sets the described default gains (vocal stem 100%/others muted on
       one side, all non-vocal stems 100%/vocal muted on the other) —
       still freely adjustable afterward.
-- [ ] Selecting the "A then B" recipe joins the two (possibly trimmed)
+- [x] Selecting the "A then B" recipe joins the two (possibly trimmed)
       sources sequentially with a fixed 1.5-second **equal-power**
       crossfade (not the existing linear same-song fade curve, and not
       the existing 15ms constant); output duration is the sum of both
       trimmed lengths minus the overlap.
-- [ ] A "Preview mix" action exists, plays through the existing
+- [x] A "Preview mix" action exists, plays through the existing
       `AudioPreviewPlayer`, and is byte-identical to what exporting would
       produce for the currently-selected recipe and settings.
-- [ ] Switching recipes re-applies that recipe's own defaults rather than
+- [x] Switching recipes re-applies that recipe's own defaults rather than
       leaving stale settings from a previously-selected recipe.
-- [ ] `TwoSourceAudioMixer.Mix`'s output never hard-clips: a combined
+- [x] `TwoSourceAudioMixer.Mix`'s output never hard-clips: a combined
       buffer whose peak would exceed full scale is scaled down to a
       -1 dBFS ceiling instead, verified with a test that mixes two
       full-scale sources at the Mashup recipe's default gains and asserts
       no sample lands at `short.MinValue`/`short.MaxValue` from clipping.
-- [ ] All recipe edge cases above are handled explicitly, not silently
+- [x] All recipe edge cases above are handled explicitly, not silently
       ignored.
+
+## What shipped (recipe revision, 2026-08-05)
+
+- Added three clearly described, visually selected Mix recipes: automatic
+  Vocals + Instrumental Mashup, sequential A then B, and the existing
+  simultaneous manual workflow as Custom. Mashup relabels the source roles,
+  supports one-click swapping, automatically downloads/uses the stem model
+  when needed, separates both sources, and applies the vocal/non-vocal gains
+  across every segment while leaving all sliders editable afterward.
+- Added a shared combined-render path used by both Preview mix and export.
+  Sequential rendering uses the fixed 1.5-second equal-power crossfade and
+  exact sum-minus-overlap duration; sources too short for that fixed overlap
+  receive a clear error rather than truncated or malformed output.
+- Replaced hard-clamped overlay sums with deterministic peak safety: audio
+  that fits is byte-for-byte unchanged, while an overloaded mix is scaled as
+  a whole to a -1 dBFS ceiling. The same safety applies to sequential overlap.
+- Added role-switching, background stem-preparation/progress, busy gating,
+  swap, multi-segment gain, shared preview/export, equal-power duration, and
+  non-clipping regression coverage. `dotnet format --verify-no-changes` is
+  clean; full Debug and Release builds each pass 190/190 tests with zero
+  warnings. A live workspace smoke test opened Mix and verified all recipe,
+  editor, preview, and export controls in the rendered WPF automation tree.
+
+No deviations or known gaps within the recipe acceptance criteria.
